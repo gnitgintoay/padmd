@@ -1,48 +1,141 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101114" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PadMD" />
+    <title>PadMD</title>
+    <script type="module" crossorigin src="/assets/index-CRUj4v2_.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-D_jUDo7G.css">
+  <link rel="manifest" href="/manifest.webmanifest"></head>
+  <body>
+    <div id="app" class="app">
+      <aside id="sidebar" class="sidebar" aria-label="文档库">
+        <header class="brand-row">
+          <div>
+            <h1>PadMD</h1>
+            <p>本地 Markdown 工作台</p>
+          </div>
+          <button id="themeButton" class="icon-button" type="button" aria-label="切换明暗主题" title="切换明暗主题">◐</button>
+        </header>
 
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
+        <label class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <input id="librarySearch" type="search" placeholder="搜索名称或路径" autocomplete="off" />
+        </label>
 
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+        <div class="library-actions">
+          <button id="newButton" class="primary" type="button">新建</button>
+          <button id="fileButton" type="button">导入文件</button>
+          <button id="folderButton" type="button">导入文件夹</button>
+          <button id="zipButton" type="button">导入 ZIP</button>
+        </div>
 
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="/">
+        <div id="libraryNotice" class="library-notice" role="status"></div>
+        <nav id="documentTree" class="document-tree" aria-label="Markdown 文档"></nav>
+        <footer class="sidebar-footer">
+          <span>文档只保存在此浏览器</span>
+          <button id="backupAllButton" type="button">备份全部</button>
+        </footer>
+      </aside>
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="在平板上阅读、编辑和预览 Markdown 文档。">
-  <meta name="theme-color" content="#3D5A80">
+      <div id="sidebarScrim" class="sidebar-scrim" hidden></div>
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="PadMD">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+      <main class="main">
+        <section id="welcome" class="welcome">
+          <div class="welcome-card">
+            <img src="icon.svg" alt="" width="72" height="72" />
+            <h2>打开你的 Markdown 文档</h2>
+            <p>文件夹会一次性复制进 PadMD。编辑稿和导入原文分开保存，不会自动覆盖原文件。</p>
+            <div class="welcome-actions">
+              <button id="welcomeFolderButton" class="primary" type="button">导入文件夹</button>
+              <button id="welcomeFileButton" type="button">选择文件</button>
+            </div>
+            <p class="muted">旧版 Safari 无法完整选择文件夹时，请使用 ZIP 导入。</p>
+          </div>
+        </section>
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+        <section id="editorScreen" class="editor-screen" hidden>
+          <header class="document-header">
+            <button id="sidebarButton" class="icon-button mobile-only" type="button" aria-label="打开文档列表">☰</button>
+            <div class="document-identity">
+              <button id="documentName" class="document-name" type="button" title="重命名"></button>
+              <span id="saveStatus" class="save-status">未修改</span>
+            </div>
+            <div class="header-actions">
+              <button id="discardButton" type="button" disabled>恢复原文</button>
+              <button id="saveCopyButton" class="primary" type="button">保存副本</button>
+            </div>
+          </header>
 
-  <title>PadMD</title>
-  <link rel="manifest" href="manifest.json">
-</head>
-<body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+          <div class="view-row">
+            <div class="mode-switch" role="group" aria-label="编辑模式">
+              <button id="singleModeButton" class="is-active" type="button">单栏编辑</button>
+              <button id="compareModeButton" type="button">原文对照</button>
+            </div>
+            <span id="folderPath" class="folder-path"></span>
+          </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
-  <script src="flutter_bootstrap.js" async></script>
-</body>
+          <div id="workspace" class="workspace is-single">
+            <section id="originalPane" class="pane original-pane" aria-label="原始内容">
+              <div class="pane-label">原始内容（只读）</div>
+              <pre id="originalContent" tabindex="0"></pre>
+            </section>
+            <div id="splitGutter" class="split-gutter" role="separator" aria-label="调整原文和修改稿宽度" aria-orientation="vertical" tabindex="0"></div>
+            <section class="pane edit-pane" aria-label="修改稿">
+              <div class="pane-label">修改稿</div>
+              <div id="editor" class="editor"></div>
+            </section>
+          </div>
+
+          <div id="formatToolbar" class="format-toolbar" role="toolbar" aria-label="Markdown 格式">
+            <button type="button" data-prefix="# " title="标题">H</button>
+            <button type="button" data-wrap="**|**" title="加粗（⌘/Ctrl+B）"><strong>B</strong></button>
+            <button type="button" data-wrap="*|*" title="斜体（⌘/Ctrl+I）"><em>I</em></button>
+            <button type="button" data-prefix="- " title="无序列表">—</button>
+            <button type="button" data-prefix="1. " title="有序列表">1.</button>
+            <button type="button" data-prefix="- [ ] " title="待办事项">☐</button>
+            <button type="button" data-prefix="> " title="引用">›</button>
+            <button type="button" data-wrap="`|`" title="行内代码">&lt;/&gt;</button>
+            <button type="button" data-wrap="```\n|\n```" title="代码块">```</button>
+            <button type="button" data-wrap="[|](https://)" title="链接">链接</button>
+            <span class="toolbar-spacer"></span>
+            <button id="findButton" type="button" title="查找替换（⌘/Ctrl+F）">查找</button>
+            <button id="undoButton" type="button" title="撤销">↶</button>
+            <button id="redoButton" type="button" title="重做">↷</button>
+          </div>
+
+          <footer class="status-bar">
+            <span id="positionStatus">第 1 行，第 1 列</span>
+            <span id="documentStats">0 行 · 0 字符 · 0 词</span>
+          </footer>
+        </section>
+      </main>
+    </div>
+
+    <input id="fileInput" type="file" accept=".md,.markdown,.mdown,.mkd,text/markdown,text/plain" multiple hidden />
+    <input id="folderInput" type="file" webkitdirectory directory multiple hidden />
+    <input id="zipInput" type="file" accept=".zip,application/zip" hidden />
+
+    <dialog id="renameDialog">
+      <form method="dialog">
+        <h2>重命名文档</h2>
+        <label>文件名<input id="renameInput" type="text" autocomplete="off" /></label>
+        <div class="dialog-actions"><button value="cancel">取消</button><button class="primary" value="confirm">确定</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="confirmDialog">
+      <form method="dialog">
+        <h2 id="confirmTitle">确认操作</h2>
+        <p id="confirmMessage"></p>
+        <div class="dialog-actions"><button value="cancel">取消</button><button class="danger" value="confirm">确定</button></div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
 </html>
