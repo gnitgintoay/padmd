@@ -33,6 +33,7 @@ const elements = {
   themeButton: $("#themeButton"),
   librarySearch: $("#librarySearch"),
   libraryNotice: $("#libraryNotice"),
+  libraryCount: $("#libraryCount"),
   documentTree: $("#documentTree"),
   newButton: $("#newButton"),
   fileButton: $("#fileButton"),
@@ -64,6 +65,8 @@ const elements = {
   folderInput: $("#folderInput"),
   zipInput: $("#zipInput"),
   renameDialog: $("#renameDialog"),
+  textPromptTitle: $("#textPromptTitle"),
+  textPromptLabel: $("#textPromptLabel"),
   renameInput: $("#renameInput"),
   confirmDialog: $("#confirmDialog"),
   confirmTitle: $("#confirmTitle"),
@@ -204,6 +207,7 @@ async function refreshLibrary() {
   const allDocuments = await listDocuments({ includeTrashed: true });
   state.documents = allDocuments.filter((document) => !document.trashed);
   state.trashedDocuments = allDocuments.filter((document) => document.trashed);
+  elements.libraryCount.textContent = String(state.documents.length);
   renderLibrary();
   elements.backupAllButton.disabled = state.documents.length === 0;
 }
@@ -328,7 +332,7 @@ function renderDocumentRow(doc) {
   summary.title = "文档操作";
   const popover = document.createElement("div");
   popover.className = "doc-menu-popover";
-  for (const [action, label] of [["rename", "重命名"], ["duplicate", "创建副本"], ["delete", "移到回收站"]]) {
+  for (const [action, label] of [["rename", "重命名"], ["category", "移动到分类"], ["duplicate", "创建副本"], ["delete", "移到回收站"]]) {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.action = action;
@@ -414,6 +418,7 @@ async function createNewDocument() {
   await backupDraft();
   const document = createDocument({
     name: "未命名文档.md",
+    path: "我的文档/未命名文档.md",
     content: "# 未命名文档\n\n开始写作…\n",
     source: "created",
   });
@@ -425,7 +430,8 @@ async function createNewDocument() {
 async function importFiles() {
   try {
     const files = await chooseMarkdownFiles(elements.fileInput);
-    await importFileRecords(files, "file");
+    const imported = await importFileRecords(files, "file");
+    if (imported) setLibraryNotice(`已导入 ${imported} 篇，放在“未分类”中；列表可上下滑动`);
   } catch (error) {
     showError("导入文件失败", error);
   }
@@ -435,12 +441,12 @@ async function importFolder() {
   try {
     setLibraryNotice("正在读取文件夹…");
     const result = await chooseFolder(elements.folderInput);
+    const imported = await importFileRecords(result.files, "folder");
     if (result.mode === "flat-input") {
-      setLibraryNotice("当前 Safari 没有提供完整文件夹路径。请升级 iPadOS，或把文件夹压缩成 ZIP 后导入。", true);
+      setLibraryNotice(`Safari 只返回了 ${imported} 篇且没有文件夹层级。请升级到 iPadOS 18.4+，或改用 ZIP。`, true);
     } else if (result.mode !== "cancelled") {
-      setLibraryNotice(`已读取文件夹“${result.root || "Markdown"}”`);
+      setLibraryNotice(`已导入文件夹“${result.root || "Markdown"}”：${imported} 篇；列表可上下滑动`);
     }
-    await importFileRecords(result.files, "folder");
   } catch (error) {
     setLibraryNotice("文件夹读取失败，请改用 ZIP 导入。", true);
     showError("导入文件夹失败", error);
@@ -451,8 +457,8 @@ async function importZip() {
   try {
     setLibraryNotice("正在解压 ZIP…");
     const files = await chooseZip(elements.zipInput);
-    setLibraryNotice(files.length ? `已从 ZIP 读取 ${files.length} 个 Markdown 文档` : "ZIP 中没有 Markdown 文档", !files.length);
-    await importFileRecords(files, "zip");
+    const imported = await importFileRecords(files, "zip");
+    setLibraryNotice(imported ? `已在本机解压 ZIP：导入 ${imported} 篇，并保留文件夹分类` : "ZIP 中没有 Markdown 文档", !imported);
   } catch (error) {
     setLibraryNotice("ZIP 读取失败，请确认压缩包未损坏。", true);
     showError("导入 ZIP 失败", error);
@@ -460,17 +466,19 @@ async function importZip() {
 }
 
 async function importFileRecords(files, source) {
-  if (!files?.length) return;
+  if (!files?.length) return 0;
   await backupDraft();
   const imported = [];
   for (const file of files) {
-    const document = createDocument({ name: file.name, path: file.path, content: file.content, source });
+    const path = source === "file" ? `未分类/${file.name}` : file.path;
+    const document = createDocument({ name: file.name, path, content: file.content, source });
     await putDocument(document);
     imported.push(document);
   }
   await refreshLibrary();
   await openDocument(imported[0].id);
   toast(`已复制 ${imported.length} 个 Markdown 文档，不会修改原文件`);
+  return imported.length;
 }
 
 async function saveCopy() {
@@ -524,11 +532,26 @@ async function handleDocumentAction(document, action) {
     document.path = parts.join("/");
     document.modifiedAt = Date.now();
     await putDocument(document);
+  } else if (action === "category") {
+    const currentCategory = document.path.split("/").slice(0, -1).join("/");
+    const value = await promptText("移动到分类", "分类路径（例如：学习/课程；留空放到根目录）", currentCategory);
+    if (value === null) return;
+    const category = normalizeCategory(value);
+    document.path = category ? `${category}/${document.name}` : document.name;
+    document.modifiedAt = Date.now();
+    await putDocument(document);
+    if (state.current?.id === document.id) {
+      state.current.path = document.path;
+      elements.folderPath.textContent = document.path;
+    }
+    toast(category ? `已移动到“${category}”` : "已移动到根目录");
   } else if (action === "duplicate") {
     const stem = document.name.replace(/\.(?:md|markdown|mdown|mkd)$/i, "");
+    const copyName = `${stem}-副本.md`;
+    const category = document.path.split("/").slice(0, -1).join("/");
     const copy = createDocument({
-      name: `${stem}-副本.md`,
-      path: `${stem}-副本.md`,
+      name: copyName,
+      path: category ? `${category}/${copyName}` : copyName,
       content: document.draft,
       source: "duplicate",
     });
@@ -551,11 +574,26 @@ async function handleDocumentAction(document, action) {
 }
 
 async function promptRename(currentName) {
-  elements.renameInput.value = currentName;
+  return promptText("重命名文档", "文件名", currentName);
+}
+
+async function promptText(title, label, currentValue) {
+  elements.textPromptTitle.textContent = title;
+  elements.textPromptLabel.textContent = label;
+  elements.renameInput.value = currentValue;
   elements.renameDialog.showModal();
   requestAnimationFrame(() => elements.renameInput.select());
   const result = await waitForDialog(elements.renameDialog);
   return result === "confirm" ? elements.renameInput.value.trim() : null;
+}
+
+function normalizeCategory(value) {
+  return value
+    .replaceAll("\\", "/")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("/");
 }
 
 async function confirmAction(title, message, confirmLabel) {

@@ -8,8 +8,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="PadMD" />
     <title>PadMD</title>
-    <script type="module" crossorigin src="/padmd/assets/index-DgRdBN26.js"></script>
-    <link rel="stylesheet" crossorigin href="/padmd/assets/index-DuGEt1sr.css">
+    <script type="module" crossorigin src="/padmd/assets/index-BFXIy5Lm.js"></script>
+    <link rel="stylesheet" crossorigin href="/padmd/assets/index-Cj7_2EBL.css">
   <link rel="manifest" href="/padmd/manifest.webmanifest"></head>
   <body>
     <div id="app" class="app">
@@ -32,15 +32,15 @@
 
         <div class="library-actions">
           <button id="newButton" class="primary" type="button">新建</button>
-          <button id="fileButton" type="button">导入文件</button>
+          <button id="fileButton" type="button">导入 MD 文件</button>
           <button id="folderButton" type="button">导入文件夹</button>
-          <button id="zipButton" type="button">导入 ZIP</button>
+          <button id="zipButton" type="button">导入 ZIP 文件夹</button>
         </div>
 
-        <div id="libraryNotice" class="library-notice" role="status"></div>
+        <div id="libraryNotice" class="library-notice" role="status">所有文件只在本机处理，不会上传</div>
         <nav id="documentTree" class="document-tree" aria-label="Markdown 文档"></nav>
         <footer class="sidebar-footer">
-          <span>文档只保存在此浏览器</span>
+          <span><strong id="libraryCount">0</strong> 篇 · 仅存此浏览器</span>
           <button id="backupAllButton" type="button">备份全部</button>
         </footer>
       </aside>
@@ -58,7 +58,7 @@
               <button id="welcomeFolderButton" class="primary" type="button">导入文件夹</button>
               <button id="welcomeFileButton" type="button">选择文件</button>
             </div>
-            <p class="muted">旧版 Safari 无法完整选择文件夹时，请使用 ZIP 导入。</p>
+            <p class="muted">ZIP 会在本机自动解压。旧版 Safari 无法完整选择文件夹时，请使用 ZIP 导入。</p>
           </div>
         </section>
 
@@ -127,8 +127,8 @@
 
     <dialog id="renameDialog">
       <form method="dialog">
-        <h2>重命名文档</h2>
-        <label>文件名<input id="renameInput" type="text" autocomplete="off" /></label>
+        <h2 id="textPromptTitle">重命名文档</h2>
+        <label><span id="textPromptLabel">文件名</span><input id="renameInput" type="text" autocomplete="off" /></label>
         <div class="dialog-actions"><button value="cancel">取消</button><button class="primary" value="confirm">确定</button></div>
       </form>
     </dialog>

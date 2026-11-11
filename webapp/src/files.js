@@ -54,7 +54,11 @@ export async function chooseMarkdownFiles(fileInput) {
 export async function chooseZip(zipInput) {
   const [file] = await chooseInputFiles(zipInput);
   if (!file) return [];
-  const archive = unzipSync(new Uint8Array(await file.arrayBuffer()));
+  return extractMarkdownFromZip(new Uint8Array(await file.arrayBuffer()));
+}
+
+export function extractMarkdownFromZip(bytes) {
+  const archive = unzipSync(bytes);
   const files = [];
   for (const [path, bytes] of Object.entries(archive)) {
     if (!isMarkdown(path) || path.endsWith("/")) continue;

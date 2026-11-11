@@ -164,6 +164,7 @@ button.danger { color: white; background: #a82e36; border-color: #a82e36; }
 .editor .cm-editor { height: 100%; background: var(--bg); color: var(--text); font-size: 16px; }
 .editor .cm-scroller { overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; line-height: 1.65; padding-bottom: 80px; }
 .editor .cm-content { padding: 18px 10px; caret-color: var(--accent); }
+.editor .cm-cursor { border-left-color: var(--accent) !important; border-left-width: 2px; }
 .editor .cm-gutters { background: var(--panel); color: var(--muted); border-right: 1px solid var(--line); }
 .editor .cm-activeLine, .editor .cm-activeLineGutter { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .editor .cm-selectionBackground, .editor .cm-content ::selection { background: color-mix(in srgb, var(--accent) 34%, transparent) !important; }
