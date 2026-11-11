@@ -1,9 +1,10 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab, redo, undo } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { bracketMatching, defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { bracketMatching, defaultHighlightStyle, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { openSearchPanel, searchKeymap } from "@codemirror/search";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import {
+  Decoration,
   drawSelection,
   dropCursor,
   EditorView,
@@ -12,7 +13,44 @@ import {
   highlightSpecialChars,
   keymap,
   lineNumbers,
+  ViewPlugin,
 } from "@codemirror/view";
+import { tags } from "@lezer/highlight";
+
+const padmdMarkdownStyle = HighlightStyle.define([
+  { tag: tags.strong, fontWeight: "750" },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.heading, fontWeight: "750" },
+]);
+
+const highlightText = Decoration.mark({ class: "cm-padmd-highlight" });
+const highlightMark = Decoration.mark({ class: "cm-padmd-highlight-mark" });
+
+function findHighlights(view) {
+  const ranges = [];
+  for (const { from, to } of view.visibleRanges) {
+    const text = view.state.doc.sliceString(from, to);
+    const pattern = /==([^=\n](?:.*?[^=\n])?)==/g;
+    for (const match of text.matchAll(pattern)) {
+      const start = from + match.index;
+      const end = start + match[0].length;
+      ranges.push(highlightMark.range(start, start + 2));
+      ranges.push(highlightText.range(start + 2, end - 2));
+      ranges.push(highlightMark.range(end - 2, end));
+    }
+  }
+  return Decoration.set(ranges, true);
+}
+
+const markdownHighlights = ViewPlugin.fromClass(
+  class {
+    constructor(view) { this.decorations = findHighlights(view); }
+    update(update) {
+      if (update.docChanged || update.viewportChanged) this.decorations = findHighlights(update.view);
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
 
 export function createMarkdownEditor(parent, { onChange, onSave }) {
   let suppressChange = false;
@@ -32,6 +70,8 @@ export function createMarkdownEditor(parent, { onChange, onSave }) {
         EditorView.lineWrapping,
         markdown(),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        syntaxHighlighting(padmdMarkdownStyle),
+        markdownHighlights,
         keymap.of([
           {
             key: "Mod-s",

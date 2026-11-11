@@ -28,6 +28,8 @@ const elements = {
   sidebar: $("#sidebar"),
   sidebarScrim: $("#sidebarScrim"),
   sidebarButton: $("#sidebarButton"),
+  sidebarCollapseButton: $("#sidebarCollapseButton"),
+  sidebarRailButton: $("#sidebarRailButton"),
   themeButton: $("#themeButton"),
   librarySearch: $("#librarySearch"),
   libraryNotice: $("#libraryNotice"),
@@ -76,8 +78,11 @@ const state = {
   needsBackup: false,
   mode: "single",
   splitRatio: 0.46,
+  sidebarCollapsed: false,
   toastTimer: null,
 };
+
+let syncScrollOwner = null;
 
 const editor = createMarkdownEditor(elements.editor, {
   onChange: handleEditorUpdate,
@@ -93,16 +98,19 @@ async function initialize() {
   // Bind controls before touching persistent storage. Some embedded WebKit
   // browsers can take a moment to open IndexedDB on their first launch.
   wireEvents();
-  const [theme, splitRatio, editorMode] = await Promise.all([
+  const [theme, splitRatio, editorMode, sidebarCollapsed] = await Promise.all([
     getSetting("theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"),
     getSetting("splitRatio", 0.46),
     getSetting("editorMode", "single"),
+    getSetting("sidebarCollapsed", false),
   ]);
   applyTheme(theme);
   state.splitRatio = Number(splitRatio);
   state.mode = editorMode;
+  state.sidebarCollapsed = Boolean(sidebarCollapsed);
   applySplitRatio(state.splitRatio);
   applyMode(state.mode);
+  applySidebarCollapsed(state.sidebarCollapsed);
 
   const migrated = await migrateFlutterDocuments();
   await refreshLibrary();
@@ -141,6 +149,14 @@ function wireEvents() {
   });
 
   elements.sidebarButton.addEventListener("click", () => toggleSidebar(true));
+  elements.sidebarRailButton.addEventListener("click", () => {
+    if (innerWidth <= 820) toggleSidebar(true);
+    else setSidebarCollapsed(false);
+  });
+  elements.sidebarCollapseButton.addEventListener("click", () => {
+    if (innerWidth <= 820) toggleSidebar(false);
+    else setSidebarCollapsed(true);
+  });
   elements.sidebarScrim.addEventListener("click", () => toggleSidebar(false));
   elements.documentName.addEventListener("click", renameCurrentDocument);
   elements.discardButton.addEventListener("click", discardChanges);
@@ -555,6 +571,9 @@ function waitForDialog(dialog) {
 }
 
 async function setMode(mode) {
+  // A layout change may make CodeMirror adjust its own scroll position. It is
+  // not a user scroll and must never start cross-pane synchronization.
+  syncScrollOwner = null;
   state.mode = mode;
   applyMode(mode);
   await setSetting("editorMode", mode);
@@ -612,18 +631,37 @@ function applySplitRatio(value) {
 
 function wireSynchronizedScroll() {
   const editScroller = elements.editor.querySelector(".cm-scroller");
-  let syncing = false;
   const sync = (source, target) => {
-    if (syncing || state.mode !== "compare") return;
+    if (syncScrollOwner !== source || state.mode !== "compare") return;
     const sourceRange = source.scrollHeight - source.clientHeight;
     const targetRange = target.scrollHeight - target.clientHeight;
     if (sourceRange <= 0 || targetRange <= 0) return;
-    syncing = true;
-    target.scrollTop = (source.scrollTop / sourceRange) * targetRange;
-    requestAnimationFrame(() => { syncing = false; });
+    const next = (source.scrollTop / sourceRange) * targetRange;
+    if (Math.abs(target.scrollTop - next) > 1) target.scrollTop = next;
   };
+
+  const claim = (scroller) => { syncScrollOwner = scroller; };
+  for (const scroller of [editScroller, elements.originalContent]) {
+    scroller.addEventListener("pointerdown", () => claim(scroller), { passive: true });
+    scroller.addEventListener("touchstart", () => claim(scroller), { passive: true });
+    scroller.addEventListener("wheel", () => claim(scroller), { passive: true });
+    scroller.addEventListener("keydown", (event) => {
+      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) claim(scroller);
+    });
+  }
   editScroller.addEventListener("scroll", () => sync(editScroller, elements.originalContent), { passive: true });
   elements.originalContent.addEventListener("scroll", () => sync(elements.originalContent, editScroller), { passive: true });
+}
+
+async function setSidebarCollapsed(collapsed) {
+  state.sidebarCollapsed = collapsed;
+  applySidebarCollapsed(collapsed);
+  await setSetting("sidebarCollapsed", collapsed);
+}
+
+function applySidebarCollapsed(collapsed) {
+  elements.app.classList.toggle("sidebar-collapsed", collapsed);
+  elements.sidebarRailButton.setAttribute("aria-expanded", String(!collapsed));
 }
 
 function applyTheme(theme) {

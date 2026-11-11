@@ -71,6 +71,7 @@ button.danger { color: white; background: #a82e36; border-color: #a82e36; }
 }
 
 .brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 16px; }
+.brand-actions { display: flex; gap: 4px; }
 .brand-row h1 { margin: 0; font-size: 24px; letter-spacing: -0.5px; }
 .brand-row p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
 .icon-button { padding: 7px 10px; min-width: 38px; min-height: 38px; background: transparent; }
@@ -126,7 +127,11 @@ button.danger { color: white; background: #a82e36; border-color: #a82e36; }
 .sidebar-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .sidebar-footer button { padding: 6px 8px; font-size: 12px; }
 
-.main { min-width: 0; min-height: 0; }
+.main { min-width: 0; min-height: 0; position: relative; }
+.sidebar-rail-button { display: none; position: absolute; left: 10px; top: max(10px, env(safe-area-inset-top)); z-index: 12; background: var(--panel); box-shadow: var(--shadow); }
+.app.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+.app.sidebar-collapsed .sidebar { display: none; }
+.app.sidebar-collapsed .sidebar-rail-button { display: inline-grid; place-items: center; }
 .welcome { height: 100%; display: grid; place-items: center; padding: 30px; }
 .welcome-card { width: min(520px, 100%); text-align: center; }
 .welcome-card img { border-radius: 18px; }
@@ -165,6 +170,8 @@ button.danger { color: white; background: #a82e36; border-color: #a82e36; }
 .editor .cm-focused { outline: none; }
 .editor .cm-panels { background: var(--panel); color: var(--text); border-color: var(--line); }
 .editor .cm-textfield { color: var(--text); background: var(--panel-2); border-color: var(--line); }
+.editor .cm-padmd-highlight { background: #ffe66d; border-radius: 3px; color: #2b2500; padding: 0 1px; }
+.editor .cm-padmd-highlight-mark { color: color-mix(in srgb, var(--muted) 55%, transparent); }
 
 .split-gutter { position: relative; background: var(--panel); cursor: col-resize; touch-action: none; }
 .split-gutter::after { content: ""; position: absolute; inset: 12px 3px; border-radius: 999px; background: var(--line); transition: background 120ms ease; }
@@ -195,6 +202,9 @@ dialog input { width: 100%; padding: 10px 12px; color: var(--text); background: 
   .sidebar-scrim { display: block; position: fixed; inset: 0; z-index: 15; border: 0; background: rgb(0 0 0 / 0.5); }
   .app:not(.sidebar-open) .sidebar-scrim { display: none; }
   .mobile-only { display: inline-grid; place-items: center; }
+  .sidebar-rail-button { display: inline-grid; place-items: center; }
+  .app.sidebar-open .sidebar-rail-button { display: none; }
+  .app.sidebar-collapsed .sidebar { display: flex; }
   .document-header { gap: 8px; }
   .header-actions button { padding-inline: 9px; }
   .folder-path { display: none; }

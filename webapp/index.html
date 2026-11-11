@@ -17,7 +17,10 @@
             <h1>PadMD</h1>
             <p>本地 Markdown 工作台</p>
           </div>
-          <button id="themeButton" class="icon-button" type="button" aria-label="切换明暗主题" title="切换明暗主题">◐</button>
+          <div class="brand-actions">
+            <button id="themeButton" class="icon-button" type="button" aria-label="切换明暗主题" title="切换明暗主题">◐</button>
+            <button id="sidebarCollapseButton" class="icon-button" type="button" aria-label="收起工作台" title="收起工作台">‹</button>
+          </div>
         </header>
 
         <label class="search-box">
@@ -43,6 +46,7 @@
       <div id="sidebarScrim" class="sidebar-scrim" hidden></div>
 
       <main class="main">
+        <button id="sidebarRailButton" class="sidebar-rail-button icon-button" type="button" aria-label="展开工作台" title="展开工作台">☰</button>
         <section id="welcome" class="welcome">
           <div class="welcome-card">
             <img src="icon.svg" alt="" width="72" height="72" />
@@ -99,6 +103,7 @@
             <button type="button" data-prefix="> " title="引用">›</button>
             <button type="button" data-wrap="`|`" title="行内代码">&lt;/&gt;</button>
             <button type="button" data-wrap="```\n|\n```" title="代码块">```</button>
+            <button type="button" data-wrap="==|==" title="高亮标记">高亮</button>
             <button type="button" data-wrap="[|](https://)" title="链接">链接</button>
             <span class="toolbar-spacer"></span>
             <button id="findButton" type="button" title="查找替换（⌘/Ctrl+F）">查找</button>
