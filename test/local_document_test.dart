@@ -8,12 +8,15 @@ void main() {
       name: 'notes.md',
       path: '/documents/notes.md',
       modifiedAt: DateTime.utc(2026, 11, 10),
+      hasDraft: true,
     );
 
     final restored = LocalDocument.fromJson(original.toJson());
 
     expect(restored.id, original.id);
     expect(restored.name, original.name);
+    expect(restored.path, original.path);
     expect(restored.modifiedAt, original.modifiedAt);
+    expect(restored.hasDraft, isTrue);
   });
 }
