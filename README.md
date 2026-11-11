@@ -28,3 +28,5 @@ flutter run
 Build the free PWA with `flutter build web --release`. Serve the generated
 `build/web` folder over HTTPS, open it in iPad Safari, then choose Share > Add
 to Home Screen.
+
+Public PWA: https://gnitgintoay.github.io/padmd/
