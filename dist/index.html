@@ -10,8 +10,8 @@
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon-180.png" />
     <title>Moyo · 墨页</title>
-    <script type="module" crossorigin src="/assets/index-BOxHKnYe.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-B1T-inJD.css">
+    <script type="module" crossorigin src="/assets/index-DGkaZd5U.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BTPXtv5Q.css">
   <link rel="manifest" href="/manifest.webmanifest"></head>
   <body>
     <div id="app" class="app">
@@ -43,6 +43,10 @@
         </div>
 
         <div id="libraryNotice" class="library-notice" role="status">所有文件只在本机处理，不会上传</div>
+        <div class="library-section-head" aria-hidden="true">
+          <span>文档库</span>
+          <span>文件夹与文档</span>
+        </div>
         <nav id="documentTree" class="document-tree" aria-label="Markdown 文档" tabindex="0"></nav>
         <footer class="sidebar-footer">
           <span><strong id="libraryCount">0</strong> 篇 · 仅存此浏览器</span>
@@ -72,7 +76,7 @@
             <button id="sidebarButton" class="icon-button mobile-only" type="button" aria-label="打开文档列表"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
             <div class="document-identity">
               <button id="documentName" class="document-name" type="button" title="重命名"></button>
-              <span id="saveStatus" class="save-status">未修改</span>
+              <span id="saveStatus" class="save-status" data-state="clean">未修改</span>
             </div>
             <div class="header-actions">
               <button id="discardButton" type="button" disabled>恢复原文</button>

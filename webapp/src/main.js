@@ -86,6 +86,7 @@ const state = {
   mode: "single",
   splitRatio: 0.46,
   sidebarCollapsed: false,
+  collapsedFolders: new Set(),
   toastTimer: null,
 };
 
@@ -105,16 +106,18 @@ async function initialize() {
   // Bind controls before touching persistent storage. Some embedded WebKit
   // browsers can take a moment to open IndexedDB on their first launch.
   wireEvents();
-  const [theme, splitRatio, editorMode, sidebarCollapsed] = await Promise.all([
+  const [theme, splitRatio, editorMode, sidebarCollapsed, collapsedFolders] = await Promise.all([
     getSetting("theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"),
     getSetting("splitRatio", 0.46),
     getSetting("editorMode", "single"),
     getSetting("sidebarCollapsed", false),
+    getSetting("collapsedFolders", []),
   ]);
   applyTheme(theme);
   state.splitRatio = Number(splitRatio);
   state.mode = editorMode;
   state.sidebarCollapsed = Boolean(sidebarCollapsed);
+  state.collapsedFolders = new Set(Array.isArray(collapsedFolders) ? collapsedFolders : []);
   applySplitRatio(state.splitRatio);
   applyMode(state.mode);
   applySidebarCollapsed(state.sidebarCollapsed);
@@ -243,10 +246,7 @@ function renderLibrary() {
   elements.documentTree.replaceChildren();
 
   if (!visible.length && !state.trashedDocuments.length) {
-    const empty = document.createElement("p");
-    empty.className = "empty-list";
-    empty.textContent = state.documents.length ? "没有匹配的文档" : "还没有文档";
-    elements.documentTree.append(empty);
+    elements.documentTree.append(createLibraryEmptyState(Boolean(state.documents.length)));
     return;
   }
 
@@ -255,13 +255,19 @@ function renderLibrary() {
     for (const document of visible) addDocumentToTree(root, document);
     elements.documentTree.append(renderTreeNode(root, true));
   } else {
-    const empty = document.createElement("p");
-    empty.className = "empty-list";
-    empty.textContent = "没有匹配的文档";
-    elements.documentTree.append(empty);
+    elements.documentTree.append(createLibraryEmptyState(true));
   }
 
   if (state.trashedDocuments.length && !query) elements.documentTree.append(renderTrash());
+}
+
+function createLibraryEmptyState(isSearchResult) {
+  const empty = document.createElement("div");
+  empty.className = "empty-list";
+  empty.innerHTML = isSearchResult
+    ? '<span class="empty-icon">⌕</span><strong>没有找到文档</strong><span>换一个名称或路径试试</span>'
+    : '<span class="empty-icon">＋</span><strong>文档库还是空的</strong><span>新建文档，或导入已有文件夹</span>';
+  return empty;
 }
 
 function renderTrash() {
@@ -318,15 +324,31 @@ function addDocumentToTree(root, document) {
   node.documents.push(document);
 }
 
-function renderTreeNode(node, isRoot = false) {
+function renderTreeNode(node, isRoot = false, parentPath = "") {
   const fragment = document.createDocumentFragment();
   const folders = [...node.folders.entries()].sort(([a], [b]) => a.localeCompare(b, "zh-CN", { numeric: true }));
   for (const [name, child] of folders) {
+    const folderPath = parentPath ? `${parentPath}/${name}` : name;
     const details = document.createElement("details");
-    details.open = true;
+    details.className = "folder-node";
+    details.open = !state.collapsedFolders.has(folderPath);
     const summary = document.createElement("summary");
-    summary.textContent = name;
-    details.append(summary, renderTreeNode(child));
+    const icon = document.createElement("span");
+    icon.className = "folder-icon";
+    icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5h6l1.7 2h9.3v8.8a1.7 1.7 0 0 1-1.7 1.7H5.2a1.7 1.7 0 0 1-1.7-1.7V7.5Z"/><path d="M3.5 7.5V5.7A1.7 1.7 0 0 1 5.2 4h4.1l1.8 2h7.7a1.7 1.7 0 0 1 1.7 1.7v1.8"/></svg>';
+    const label = document.createElement("span");
+    label.className = "folder-name";
+    label.textContent = name;
+    const count = document.createElement("span");
+    count.className = "folder-count";
+    count.textContent = String(countTreeDocuments(child));
+    summary.append(icon, label, count);
+    details.addEventListener("toggle", () => {
+      if (details.open) state.collapsedFolders.delete(folderPath);
+      else state.collapsedFolders.add(folderPath);
+      setSetting("collapsedFolders", [...state.collapsedFolders]);
+    });
+    details.append(summary, renderTreeNode(child, false, folderPath));
     fragment.append(details);
   }
   node.documents
@@ -335,16 +357,23 @@ function renderTreeNode(node, isRoot = false) {
   return fragment;
 }
 
+function countTreeDocuments(node) {
+  let count = node.documents.length;
+  for (const child of node.folders.values()) count += countTreeDocuments(child);
+  return count;
+}
+
 function renderDocumentRow(doc) {
   const container = document.createElement("div");
   container.className = `doc-row${state.current?.id === doc.id ? " is-active" : ""}`;
+  container.dataset.documentId = doc.id;
 
   const open = document.createElement("button");
   open.className = "doc-open";
   open.type = "button";
   const dirty = doc.draft !== doc.original;
   const parentPath = (doc.path || "").split("/").slice(0, -1).join("/");
-  open.innerHTML = `<span class="doc-title">${dirty ? '<span class="doc-dirty">●</span>' : ""}${escapeHtml(doc.name)}</span><span class="doc-path">${escapeHtml(parentPath || "浏览器本地")}</span>`;
+  open.innerHTML = `<span class="doc-title"><span class="doc-file-icon" aria-hidden="true"></span><span class="doc-dirty"${dirty ? "" : " hidden"}>●</span><span class="doc-title-text">${escapeHtml(doc.name)}</span></span><span class="doc-path">${escapeHtml(parentPath || "浏览器本地")}</span>`;
   open.addEventListener("click", () => openDocument(doc.id));
 
   const menu = document.createElement("details");
@@ -407,12 +436,20 @@ function handleEditorUpdate({ text, docChanged, line, column }) {
   state.current.modifiedAt = Date.now();
   state.needsBackup = true;
   updateDocumentStatus();
-  renderLibrary();
+  updateCurrentDocumentDirtyMarker();
+}
+
+function updateCurrentDocumentDirtyMarker() {
+  if (!state.current) return;
+  const row = [...elements.documentTree.querySelectorAll(".doc-row")]
+    .find((item) => item.dataset.documentId === state.current.id);
+  const marker = row?.querySelector(".doc-dirty");
+  if (marker) marker.hidden = state.current.draft === state.current.original;
 }
 
 async function backupDraft() {
   if (!state.current || !state.needsBackup) return;
-  elements.saveStatus.textContent = "正在备份恢复草稿…";
+  setSaveStatus("正在备份恢复草稿…", "saving");
   state.current.draft = editor.getText();
   state.current.modifiedAt = Date.now();
   await putDocument(state.current);
@@ -424,9 +461,14 @@ function updateDocumentStatus() {
   if (!state.current) return;
   const changed = editor.getText() !== state.current.original;
   elements.discardButton.disabled = !changed;
-  if (!changed) elements.saveStatus.textContent = "未修改";
-  else if (state.needsBackup) elements.saveStatus.textContent = "有未备份的修改";
-  else elements.saveStatus.textContent = "恢复草稿已备份（未覆盖原文件）";
+  if (!changed) setSaveStatus("未修改", "clean");
+  else if (state.needsBackup) setSaveStatus("有未备份的修改", "pending");
+  else setSaveStatus("恢复草稿已备份（未覆盖原文件）", "backed-up");
+}
+
+function setSaveStatus(text, status) {
+  elements.saveStatus.textContent = text;
+  elements.saveStatus.dataset.state = status;
 }
 
 function updateStats(text) {
@@ -522,7 +564,7 @@ async function saveCopy() {
   downloadMarkdown(state.current, editor.getText());
   state.current.exportedAt = Date.now();
   await putDocument(state.current);
-  elements.saveStatus.textContent = "已保存副本";
+  setSaveStatus("已保存修改版副本", "exported");
   toast("已生成修改版副本，没有覆盖原文件");
 }
 
