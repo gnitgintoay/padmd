@@ -36,6 +36,11 @@ const elements = {
   librarySearch: $("#librarySearch"),
   libraryNotice: $("#libraryNotice"),
   libraryCount: $("#libraryCount"),
+  selectionModeButton: $("#selectionModeButton"),
+  batchActions: $("#batchActions"),
+  selectionCount: $("#selectionCount"),
+  selectAllButton: $("#selectAllButton"),
+  batchDeleteButton: $("#batchDeleteButton"),
   documentTree: $("#documentTree"),
   newButton: $("#newButton"),
   fileButton: $("#fileButton"),
@@ -87,6 +92,8 @@ const state = {
   splitRatio: 0.46,
   sidebarCollapsed: false,
   collapsedFolders: new Set(),
+  selectionMode: false,
+  selectedDocumentIds: new Set(),
   toastTimer: null,
 };
 
@@ -170,6 +177,9 @@ function wireEvents() {
   });
 
   elements.librarySearch.addEventListener("input", renderLibrary);
+  elements.selectionModeButton.addEventListener("click", () => setSelectionMode(!state.selectionMode));
+  elements.selectAllButton.addEventListener("click", toggleSelectAllVisible);
+  elements.batchDeleteButton.addEventListener("click", batchMoveToTrash);
   elements.documentTree.addEventListener("click", (event) => {
     if (!event.target.closest(".folder-menu-button, .folder-menu-popover")) closeFolderMenus();
   });
@@ -241,6 +251,11 @@ async function refreshLibrary() {
   const allDocuments = await listDocuments({ includeTrashed: true });
   state.documents = allDocuments.filter((document) => !document.trashed);
   state.trashedDocuments = allDocuments.filter((document) => document.trashed);
+  const availableIds = new Set(state.documents.map((document) => document.id));
+  state.selectedDocumentIds = new Set(
+    [...state.selectedDocumentIds].filter((id) => availableIds.has(id)),
+  );
+  if (!state.documents.length) state.selectionMode = false;
   elements.libraryCount.textContent = String(state.documents.length);
   renderLibrary();
   elements.backupAllButton.disabled = state.documents.length === 0;
@@ -248,10 +263,8 @@ async function refreshLibrary() {
 
 function renderLibrary() {
   const query = elements.librarySearch.value.trim().toLowerCase();
-  const visible = state.documents.filter((document) => {
-    const haystack = `${document.name} ${document.path}`.toLowerCase();
-    return !query || haystack.includes(query);
-  });
+  const visible = getVisibleDocuments();
+  updateSelectionControls(visible);
   elements.documentTree.replaceChildren();
 
   if (!visible.length && !state.trashedDocuments.length) {
@@ -267,7 +280,90 @@ function renderLibrary() {
     elements.documentTree.append(createLibraryEmptyState(true));
   }
 
-  if (state.trashedDocuments.length && !query) elements.documentTree.append(renderTrash());
+  if (state.trashedDocuments.length && !query && !state.selectionMode) elements.documentTree.append(renderTrash());
+}
+
+function getVisibleDocuments() {
+  const query = elements.librarySearch.value.trim().toLowerCase();
+  return state.documents.filter((document) => {
+    const haystack = `${document.name} ${document.path}`.toLowerCase();
+    return !query || haystack.includes(query);
+  });
+}
+
+function setSelectionMode(enabled) {
+  state.selectionMode = enabled && state.documents.length > 0;
+  if (!state.selectionMode) state.selectedDocumentIds.clear();
+  closeFolderMenus();
+  renderLibrary();
+}
+
+function updateSelectionControls(visible = getVisibleDocuments()) {
+  elements.selectionModeButton.disabled = state.documents.length === 0;
+  elements.selectionModeButton.textContent = state.selectionMode ? "完成" : "选择";
+  elements.selectionModeButton.setAttribute("aria-pressed", String(state.selectionMode));
+  elements.batchActions.hidden = !state.selectionMode;
+  const selectedCount = state.selectedDocumentIds.size;
+  elements.selectionCount.textContent = `已选 ${selectedCount} 篇`;
+  elements.batchDeleteButton.disabled = selectedCount === 0;
+  const allVisibleSelected = visible.length > 0
+    && visible.every((document) => state.selectedDocumentIds.has(document.id));
+  elements.selectAllButton.disabled = visible.length === 0;
+  elements.selectAllButton.textContent = allVisibleSelected ? "取消全选" : "全选";
+}
+
+function toggleDocumentSelection(id, row, control) {
+  if (state.selectedDocumentIds.has(id)) state.selectedDocumentIds.delete(id);
+  else state.selectedDocumentIds.add(id);
+  const selected = state.selectedDocumentIds.has(id);
+  row.classList.toggle("is-selected", selected);
+  control.classList.toggle("is-checked", selected);
+  control.setAttribute("aria-pressed", String(selected));
+  control.textContent = selected ? "✓" : "";
+  updateSelectionControls();
+}
+
+function toggleSelectAllVisible() {
+  const visible = getVisibleDocuments();
+  const shouldSelect = visible.some((document) => !state.selectedDocumentIds.has(document.id));
+  for (const document of visible) {
+    if (shouldSelect) state.selectedDocumentIds.add(document.id);
+    else state.selectedDocumentIds.delete(document.id);
+  }
+  renderLibrary();
+}
+
+async function batchMoveToTrash() {
+  const selectedIds = new Set(state.selectedDocumentIds);
+  if (!selectedIds.size) return;
+  const confirmed = await confirmAction(
+    `将选中的 ${selectedIds.size} 篇文档移到回收站？`,
+    "这里只删除 Moyo 的浏览器本地副本，不会删除“文件”App 中的原文件。之后仍可从回收站恢复。",
+    "移到回收站",
+  );
+  if (!confirmed) return;
+
+  await backupDraft();
+  const freshDocuments = await listDocuments();
+  const now = Date.now();
+  let movedCount = 0;
+  for (const document of freshDocuments) {
+    if (!selectedIds.has(document.id)) continue;
+    document.trashed = true;
+    document.modifiedAt = now;
+    await putDocument(document);
+    movedCount += 1;
+  }
+  if (state.current && selectedIds.has(state.current.id)) {
+    state.current = null;
+    state.needsBackup = false;
+    elements.editorScreen.hidden = true;
+    elements.welcome.hidden = false;
+  }
+  state.selectedDocumentIds.clear();
+  state.selectionMode = false;
+  await refreshLibrary();
+  toast(`已将 ${movedCount} 篇文档移到回收站`);
 }
 
 function createLibraryEmptyState(isSearchResult) {
@@ -459,8 +555,20 @@ function countTreeDocuments(node) {
 
 function renderDocumentRow(doc) {
   const container = document.createElement("div");
-  container.className = `doc-row${state.current?.id === doc.id ? " is-active" : ""}`;
+  const selected = state.selectedDocumentIds.has(doc.id);
+  container.className = `doc-row${state.current?.id === doc.id ? " is-active" : ""}${state.selectionMode ? " is-selecting" : ""}${selected ? " is-selected" : ""}`;
   container.dataset.documentId = doc.id;
+
+  let selectControl = null;
+  if (state.selectionMode) {
+    selectControl = document.createElement("button");
+    selectControl.className = `doc-select${selected ? " is-checked" : ""}`;
+    selectControl.type = "button";
+    selectControl.textContent = selected ? "✓" : "";
+    selectControl.setAttribute("aria-label", `选择 ${doc.name}`);
+    selectControl.setAttribute("aria-pressed", String(selected));
+    selectControl.addEventListener("click", () => toggleDocumentSelection(doc.id, container, selectControl));
+  }
 
   const open = document.createElement("button");
   open.className = "doc-open";
@@ -468,7 +576,15 @@ function renderDocumentRow(doc) {
   const dirty = doc.draft !== doc.original;
   const parentPath = (doc.path || "").split("/").slice(0, -1).join("/");
   open.innerHTML = `<span class="doc-title"><span class="doc-file-icon" aria-hidden="true"></span><span class="doc-dirty"${dirty ? "" : " hidden"}>●</span><span class="doc-title-text">${escapeHtml(doc.name)}</span></span><span class="doc-path">${escapeHtml(parentPath || "浏览器本地")}</span>`;
-  open.addEventListener("click", () => openDocument(doc.id));
+  open.addEventListener("click", () => {
+    if (state.selectionMode) toggleDocumentSelection(doc.id, container, selectControl);
+    else openDocument(doc.id);
+  });
+
+  if (state.selectionMode) {
+    container.append(selectControl, open);
+    return container;
+  }
 
   const menu = document.createElement("details");
   menu.className = "doc-menu";

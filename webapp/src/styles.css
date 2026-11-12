@@ -103,7 +103,11 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .library-notice { min-height: 18px; color: var(--muted); font-size: 12px; line-height: 1.4; padding: 2px 4px 6px; }
 .library-notice.is-warning { color: #e7b45e; }
 .library-section-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 7px 3px; color: var(--text); font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
-.library-section-head span:last-child { color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: 0; }
+.library-select-button { min-height: 30px; padding: 4px 9px; border: 0; background: transparent; color: var(--accent-strong); font-size: 12px; font-weight: 680; }
+.batch-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 5px; margin: 5px 3px 3px; padding: 6px 7px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); }
+.batch-actions[hidden] { display: none; }
+.batch-actions span { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.batch-actions button { min-height: 30px; padding: 4px 7px; border: 0; background: transparent; font-size: 11px; }
 
 .document-tree {
   flex: 1 1 0;
@@ -139,6 +143,10 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .folder-menu-popover button[data-action="delete"] { color: var(--danger); }
 
 .doc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; margin: 2px 0 2px 8px; }
+.doc-row.is-selecting { grid-template-columns: 29px minmax(0, 1fr); }
+.doc-select { display: grid; place-items: center; width: 23px; height: 23px; min-width: 23px; min-height: 23px; margin-left: 3px; padding: 0; border: 1.5px solid var(--muted); border-radius: 7px; background: var(--panel); color: var(--accent-ink); font-size: 14px; font-weight: 800; }
+.doc-select.is-checked { border-color: var(--accent); background: var(--accent); }
+.doc-row.is-selected .doc-open { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
 .doc-open { border: 0; border-radius: 12px; background: transparent; padding: 8px 8px; text-align: left; min-width: 0; }
 .doc-open:hover { background: var(--panel-2); }
 .doc-row.is-active .doc-open { background: color-mix(in srgb, var(--accent) 20%, var(--panel)); color: var(--text); box-shadow: inset 3px 0 var(--accent); }

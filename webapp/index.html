@@ -41,9 +41,14 @@
         </div>
 
         <div id="libraryNotice" class="library-notice" role="status">所有文件只在本机处理，不会上传</div>
-        <div class="library-section-head" aria-hidden="true">
+        <div class="library-section-head">
           <span>文档库</span>
-          <span>文件夹与文档</span>
+          <button id="selectionModeButton" class="library-select-button" type="button">选择</button>
+        </div>
+        <div id="batchActions" class="batch-actions" hidden>
+          <span id="selectionCount">已选 0 篇</span>
+          <button id="selectAllButton" type="button">全选</button>
+          <button id="batchDeleteButton" class="danger-text" type="button" disabled>移到回收站</button>
         </div>
         <nav id="documentTree" class="document-tree" aria-label="Markdown 文档" tabindex="0"></nav>
         <footer class="sidebar-footer">
