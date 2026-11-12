@@ -73,15 +73,22 @@ export function groupImportedFiles(files, { preferredRoot = "", fallbackRoot = "
       .map((file) => file.path.split("/")[0]),
   );
   const everyFileHasFolders = normalizedFiles.every((file) => file.path.includes("/"));
-  if (everyFileHasFolders && topLevels.size === 1) {
-    return { files: normalizedFiles, root: [...topLevels][0] };
-  }
-
-  const requestedRoot = normalizeFolderName(preferredRoot) || normalizeFolderName(fallbackRoot) || "导入文件夹";
+  const sharedRoot = everyFileHasFolders && topLevels.size === 1 ? [...topLevels][0] : "";
+  const requestedRoot = normalizeFolderName(sharedRoot || preferredRoot) || normalizeFolderName(fallbackRoot) || "导入文件夹";
   const usedRoots = new Set(existingRoots.map(normalizeFolderName).filter(Boolean));
   let root = requestedRoot;
   let suffix = 2;
   while (usedRoots.has(root)) root = `${requestedRoot} ${suffix++}`;
+
+  if (sharedRoot) {
+    return {
+      root,
+      files: normalizedFiles.map((file) => ({
+        ...file,
+        path: `${root}${file.path.slice(sharedRoot.length)}`,
+      })),
+    };
+  }
 
   return {
     root,

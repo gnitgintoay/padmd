@@ -48,6 +48,22 @@ describe("groupImportedFiles", () => {
     ]);
   });
 
+  it("keeps repeated folder imports as separate top-level groups", () => {
+    const result = groupImportedFiles(
+      [
+        { name: "一.md", path: "科研笔记/一.md", content: "" },
+        { name: "二.md", path: "科研笔记/章节/二.md", content: "" },
+      ],
+      { existingRoots: ["科研笔记"] },
+    );
+
+    expect(result.root).toBe("科研笔记 2");
+    expect(result.files.map((file) => file.path)).toEqual([
+      "科研笔记 2/一.md",
+      "科研笔记 2/章节/二.md",
+    ]);
+  });
+
   it("wraps Safari's flat folder selection in a distinct folder", () => {
     const result = groupImportedFiles(
       [

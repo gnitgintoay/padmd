@@ -51,6 +51,7 @@ db.js ───── IndexedDB: padmd-web
 - `draft`：当前恢复草稿；
 - `name` 与 `path`：文件名和 Moyo 内的逻辑分类；
 - `source`：创建或导入来源；
+- `importBatchId` 与 `importRoot`：文件夹或 ZIP 导入批次及其独立顶层目录；
 - `createdAt`、`modifiedAt`、`exportedAt`；
 - `trashed`：是否位于回收站。
 

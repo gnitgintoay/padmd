@@ -123,10 +123,10 @@ async function initialize() {
   applySidebarCollapsed(state.sidebarCollapsed);
 
   const migrated = await migrateFlutterDocuments();
-  const regrouped = await regroupLegacyFolderImports();
+  const regrouped = await repairLegacyLooseDocuments();
   await refreshLibrary();
   if (migrated) toast(`已从旧版 PadMD 迁移 ${migrated} 个文档`);
-  if (regrouped) toast(`已把 ${regrouped} 篇旧文件夹文档归入“此前导入的文件夹”`);
+  if (regrouped) toast(`已重新整理 ${regrouped} 篇旧版散列文档`);
 
   const lastId = await getSetting("lastDocumentId", null);
   const initial = state.documents.find((item) => item.id === lastId) || state.documents[0];
@@ -145,15 +145,21 @@ async function initialize() {
   });
 }
 
-async function regroupLegacyFolderImports() {
+async function repairLegacyLooseDocuments() {
   const documents = await listDocuments({ includeTrashed: true });
-  const flatFolderDocuments = documents.filter((document) =>
-    document.source === "folder" && !(document.path || "").includes("/"));
-  for (const document of flatFolderDocuments) {
-    document.path = `此前导入的文件夹/${document.name}`;
+  const legacyRoots = {
+    file: "未分类",
+    folder: "此前导入的文件夹",
+    zip: "此前导入的 ZIP",
+    "flutter-migration": "旧版文档",
+  };
+  const looseDocuments = documents.filter((document) =>
+    legacyRoots[document.source] && !(document.path || "").includes("/"));
+  for (const document of looseDocuments) {
+    document.path = `${legacyRoots[document.source]}/${document.name}`;
     await putDocument(document);
   }
-  return flatFolderDocuments.length;
+  return looseDocuments.length;
 }
 
 function wireEvents() {
@@ -341,7 +347,8 @@ function renderTreeNode(node, isRoot = false, parentPath = "") {
     icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5h6l1.7 2h9.3v8.8a1.7 1.7 0 0 1-1.7 1.7H5.2a1.7 1.7 0 0 1-1.7-1.7V7.5Z"/><path d="M3.5 7.5V5.7A1.7 1.7 0 0 1 5.2 4h4.1l1.8 2h7.7a1.7 1.7 0 0 1 1.7 1.7v1.8"/></svg>';
     const label = document.createElement("span");
     label.className = "folder-name";
-    label.textContent = name;
+    label.textContent = name === "未分类" ? "未分类 · 单独导入" : name;
+    label.title = folderPath;
     const count = document.createElement("span");
     count.className = "folder-count";
     count.textContent = String(countTreeDocuments(child));
@@ -634,8 +641,13 @@ async function importFileRecords(files, source, preferredRoot = "") {
         existingRoots,
       });
   const imported = [];
+  const importBatchId = source === "file" ? null : (crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
   for (const file of organized.files) {
     const document = createDocument({ name: file.name, path: file.path, content: file.content, source });
+    if (importBatchId) {
+      document.importBatchId = importBatchId;
+      document.importRoot = organized.root;
+    }
     await putDocument(document);
     imported.push(document);
   }
