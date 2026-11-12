@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#101114" />
+    <meta id="themeColorMeta" name="theme-color" content="#fff9f0" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Moyo" />
@@ -15,18 +15,21 @@
     <div id="app" class="app">
       <aside id="sidebar" class="sidebar" aria-label="文档库">
         <header class="brand-row">
-          <div>
-            <h1>Moyo</h1>
-            <p>墨页 · 本地 Markdown 工作台</p>
+          <div class="brand-lockup">
+            <img class="brand-icon" src="icon.svg" alt="" width="38" height="38" />
+            <div>
+              <h1>Moyo</h1>
+              <p>墨页 · Markdown</p>
+            </div>
           </div>
           <div class="brand-actions">
-            <button id="themeButton" class="icon-button" type="button" aria-label="切换明暗主题" title="切换明暗主题">◐</button>
-            <button id="sidebarCollapseButton" class="icon-button" type="button" aria-label="收起工作台" title="收起工作台">‹</button>
+            <button id="themeButton" class="icon-button" type="button" aria-label="切换明暗主题" title="切换明暗主题"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.4-6.4L17 7m-10 10-1.4 1.4m12.8 0L17 17M7 7 5.6 5.6"/><circle cx="12" cy="12" r="4"/></svg></button>
+            <button id="sidebarCollapseButton" class="icon-button" type="button" aria-label="收起工作台" title="收起工作台"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6"/></svg></button>
           </div>
         </header>
 
         <label class="search-box">
-          <span aria-hidden="true">⌕</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
           <input id="librarySearch" type="search" placeholder="搜索名称或路径" autocomplete="off" />
         </label>
 
@@ -48,7 +51,7 @@
       <div id="sidebarScrim" class="sidebar-scrim" hidden></div>
 
       <main class="main">
-        <button id="sidebarRailButton" class="sidebar-rail-button icon-button" type="button" aria-label="展开工作台" title="展开工作台">☰</button>
+        <button id="sidebarRailButton" class="sidebar-rail-button icon-button" type="button" aria-label="展开工作台" title="展开工作台"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
         <section id="welcome" class="welcome">
           <div class="welcome-card">
             <img src="icon.svg" alt="" width="72" height="72" />
@@ -64,7 +67,7 @@
 
         <section id="editorScreen" class="editor-screen" hidden>
           <header class="document-header">
-            <button id="sidebarButton" class="icon-button mobile-only" type="button" aria-label="打开文档列表">☰</button>
+            <button id="sidebarButton" class="icon-button mobile-only" type="button" aria-label="打开文档列表"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
             <div class="document-identity">
               <button id="documentName" class="document-name" type="button" title="重命名"></button>
               <span id="saveStatus" class="save-status">未修改</span>
@@ -141,7 +144,10 @@
       </form>
     </dialog>
 
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="toast" class="toast">
+      <span id="toastMessage" role="status" aria-live="polite"></span>
+      <button id="toastAction" type="button" hidden></button>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

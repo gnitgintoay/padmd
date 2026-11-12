@@ -31,6 +31,7 @@ const elements = {
   sidebarCollapseButton: $("#sidebarCollapseButton"),
   sidebarRailButton: $("#sidebarRailButton"),
   themeButton: $("#themeButton"),
+  themeColorMeta: $("#themeColorMeta"),
   librarySearch: $("#librarySearch"),
   libraryNotice: $("#libraryNotice"),
   libraryCount: $("#libraryCount"),
@@ -72,6 +73,8 @@ const elements = {
   confirmTitle: $("#confirmTitle"),
   confirmMessage: $("#confirmMessage"),
   toast: $("#toast"),
+  toastMessage: $("#toastMessage"),
+  toastAction: $("#toastAction"),
 };
 
 const state = {
@@ -123,10 +126,15 @@ async function initialize() {
   const initial = state.documents.find((item) => item.id === lastId) || state.documents[0];
   if (initial) await openDocument(initial.id);
 
-  registerSW({
+  let updateSW = () => Promise.resolve();
+  updateSW = registerSW({
     immediate: true,
     onNeedRefresh() {
-      toast("Moyo 已更新，下次打开将使用新版本");
+      toast("Moyo 有新版本可用", {
+        actionLabel: "立即刷新",
+        persistent: true,
+        onAction: () => updateSW(true),
+      });
     },
   });
 }
@@ -704,7 +712,9 @@ function applySidebarCollapsed(collapsed) {
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  elements.themeButton.textContent = theme === "light" ? "◑" : "◐";
+  elements.themeColorMeta.content = theme === "light" ? "#fff9f0" : "#221b18";
+  elements.themeButton.title = theme === "light" ? "切换到夜间模式" : "切换到日间模式";
+  elements.themeButton.setAttribute("aria-label", elements.themeButton.title);
 }
 
 function toggleSidebar(open) {
@@ -717,11 +727,23 @@ function setLibraryNotice(message, warning = false) {
   elements.libraryNotice.classList.toggle("is-warning", warning);
 }
 
-function toast(message) {
+function toast(message, { actionLabel = "", onAction = null, persistent = false } = {}) {
   clearTimeout(state.toastTimer);
-  elements.toast.textContent = message;
+  elements.toastMessage.textContent = message;
+  elements.toastAction.hidden = !actionLabel;
+  elements.toastAction.textContent = actionLabel;
+  elements.toastAction.onclick = actionLabel
+    ? async () => {
+        elements.toastAction.disabled = true;
+        try {
+          await onAction?.();
+        } finally {
+          elements.toastAction.disabled = false;
+        }
+      }
+    : null;
   elements.toast.classList.add("is-visible");
-  state.toastTimer = setTimeout(() => elements.toast.classList.remove("is-visible"), 3200);
+  if (!persistent) state.toastTimer = setTimeout(() => elements.toast.classList.remove("is-visible"), 3200);
 }
 
 function showError(prefix, error) {
