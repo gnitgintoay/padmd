@@ -102,6 +102,8 @@ const state = {
   collapsedFolders: new Set(),
   selectionMode: false,
   selectedDocumentIds: new Set(),
+  selectedTrashIds: new Set(),
+  trashOpen: false,
   toastTimer: null,
 };
 
@@ -272,6 +274,8 @@ async function refreshLibrary() {
   const allDocuments = await listDocuments({ includeTrashed: true });
   state.documents = allDocuments.filter((document) => !document.trashed);
   state.trashedDocuments = allDocuments.filter((document) => document.trashed);
+  const trashIds = new Set(state.trashedDocuments.map((document) => document.id));
+  state.selectedTrashIds = new Set([...state.selectedTrashIds].filter((id) => trashIds.has(id)));
   const availableIds = new Set(state.documents.map((document) => document.id));
   state.selectedDocumentIds = new Set(
     [...state.selectedDocumentIds].filter((id) => availableIds.has(id)),
@@ -401,13 +405,53 @@ function createLibraryEmptyState(isSearchResult) {
 function renderTrash() {
   const trash = document.createElement("details");
   trash.className = "trash-section";
+  trash.open = state.trashOpen;
+  trash.addEventListener("toggle", () => { state.trashOpen = trash.open; });
   const summary = document.createElement("summary");
   summary.textContent = `回收站（${state.trashedDocuments.length}）`;
   trash.append(summary);
 
+  const actions = document.createElement("div");
+  actions.className = "trash-actions";
+  const count = document.createElement("span");
+  count.textContent = `已选 ${state.selectedTrashIds.size} 篇`;
+  const selectAll = document.createElement("button");
+  selectAll.type = "button";
+  selectAll.textContent = state.selectedTrashIds.size === state.trashedDocuments.length ? "取消全选" : "全选";
+  selectAll.addEventListener("click", () => {
+    if (state.selectedTrashIds.size === state.trashedDocuments.length) state.selectedTrashIds.clear();
+    else state.selectedTrashIds = new Set(state.trashedDocuments.map((item) => item.id));
+    renderLibrary();
+  });
+  const restoreSelected = document.createElement("button");
+  restoreSelected.type = "button";
+  restoreSelected.textContent = "恢复所选";
+  restoreSelected.disabled = !state.selectedTrashIds.size;
+  restoreSelected.addEventListener("click", batchRestoreTrash);
+  const deleteSelected = document.createElement("button");
+  deleteSelected.type = "button";
+  deleteSelected.className = "danger-text";
+  deleteSelected.textContent = "删除所选";
+  deleteSelected.disabled = !state.selectedTrashIds.size;
+  deleteSelected.addEventListener("click", batchDeleteTrash);
+  actions.append(count, selectAll, restoreSelected, deleteSelected);
+  trash.append(actions);
+
   for (const doc of state.trashedDocuments) {
     const row = document.createElement("div");
     row.className = "trash-row";
+    const select = document.createElement("button");
+    const selected = state.selectedTrashIds.has(doc.id);
+    select.type = "button";
+    select.className = `trash-select${selected ? " is-checked" : ""}`;
+    select.textContent = selected ? "✓" : "";
+    select.setAttribute("aria-label", `选择 ${doc.name}`);
+    select.setAttribute("aria-pressed", String(selected));
+    select.addEventListener("click", () => {
+      if (selected) state.selectedTrashIds.delete(doc.id);
+      else state.selectedTrashIds.add(doc.id);
+      renderLibrary();
+    });
     const name = document.createElement("span");
     name.textContent = doc.name;
     name.title = doc.path;
@@ -436,10 +480,38 @@ function renderTrash() {
       await refreshLibrary();
       toast("本地副本已彻底删除");
     });
-    row.append(name, restore, remove);
+    row.append(select, name, restore, remove);
     trash.append(row);
   }
   return trash;
+}
+
+async function batchRestoreTrash() {
+  const ids = new Set(state.selectedTrashIds);
+  for (const doc of state.trashedDocuments) {
+    if (!ids.has(doc.id)) continue;
+    doc.trashed = false;
+    doc.modifiedAt = Date.now();
+    await putDocument(doc);
+  }
+  state.selectedTrashIds.clear();
+  await refreshLibrary();
+  toast(`已恢复 ${ids.size} 篇文档`);
+}
+
+async function batchDeleteTrash() {
+  const ids = new Set(state.selectedTrashIds);
+  if (!ids.size) return;
+  const confirmed = await confirmAction(
+    `彻底删除选中的 ${ids.size} 篇文档？`,
+    "此操作无法撤销，但不会删除“文件”App 中的原文件。",
+    "彻底删除",
+  );
+  if (!confirmed) return;
+  for (const id of ids) await permanentlyDeleteDocument(id);
+  state.selectedTrashIds.clear();
+  await refreshLibrary();
+  toast(`已彻底删除 ${ids.size} 篇本地副本`);
 }
 
 function addDocumentToTree(root, document) {
