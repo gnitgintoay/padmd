@@ -688,11 +688,24 @@ function renderDocumentRow(doc) {
   summary.title = "文档操作";
   const popover = document.createElement("div");
   popover.className = "doc-menu-popover";
-  for (const [action, label] of [["rename", "重命名"], ["category", "移动到分类"], ["duplicate", "创建副本"], ["history", "历史版本"], ["delete", "移到回收站"]]) {
+  const menuItems = [
+    ["rename", "重命名", "✎"],
+    ["category", "移动到分类", "↗"],
+    ["duplicate", "创建副本", "⧉"],
+    ["history", "历史版本", "◷"],
+    ["delete", "移到回收站", "⌫"],
+  ];
+  for (const [action, label, iconText] of menuItems) {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.action = action;
-    button.textContent = label;
+    const icon = document.createElement("span");
+    icon.className = "menu-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = iconText;
+    const text = document.createElement("span");
+    text.textContent = label;
+    button.append(icon, text);
     button.addEventListener("click", async () => {
       menu.open = false;
       await handleDocumentAction(doc, action);
@@ -995,6 +1008,9 @@ function showHistory(document) {
     title.textContent = version.label || "历史版本";
     const time = window.document.createElement("span");
     time.textContent = new Date(version.createdAt).toLocaleString("zh-CN");
+    const preview = window.document.createElement("span");
+    preview.className = "history-preview";
+    preview.textContent = String(version.content || "").replace(/\s+/g, " ").trim().slice(0, 80) || "空白内容";
     const restore = window.document.createElement("button");
     restore.type = "button";
     restore.textContent = "恢复为修改稿";
@@ -1015,7 +1031,7 @@ function showHistory(document) {
       await refreshLibrary();
       toast("历史版本已恢复为修改稿");
     });
-    item.append(title, time, restore);
+    item.append(title, time, preview, restore);
     elements.historyList.append(item);
   }
   elements.historyDialog.showModal();
