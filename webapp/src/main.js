@@ -78,6 +78,7 @@ const elements = {
   confirmDialog: $("#confirmDialog"),
   confirmTitle: $("#confirmTitle"),
   confirmMessage: $("#confirmMessage"),
+  saveDialog: $("#saveDialog"),
   toast: $("#toast"),
   toastMessage: $("#toastMessage"),
   toastAction: $("#toastAction"),
@@ -101,7 +102,7 @@ let syncScrollOwner = null;
 
 const editor = createMarkdownEditor(elements.editor, {
   onChange: handleEditorUpdate,
-  onSave: saveCopy,
+  onSave: openSaveOptions,
 });
 
 initialize().catch((error) => {
@@ -207,7 +208,7 @@ function wireEvents() {
   elements.sidebarScrim.addEventListener("click", () => toggleSidebar(false));
   elements.documentName.addEventListener("click", renameCurrentDocument);
   elements.discardButton.addEventListener("click", discardChanges);
-  elements.saveCopyButton.addEventListener("click", saveCopy);
+  elements.saveCopyButton.addEventListener("click", openSaveOptions);
   elements.singleModeButton.addEventListener("click", () => setMode("single"));
   elements.compareModeButton.addEventListener("click", () => setMode("compare"));
   elements.findButton.addEventListener("click", editor.find);
@@ -779,8 +780,59 @@ async function saveCopy() {
   downloadMarkdown(state.current, editor.getText());
   state.current.exportedAt = Date.now();
   await putDocument(state.current);
-  setSaveStatus("已保存修改版副本", "exported");
-  toast("已生成修改版副本，没有覆盖原文件");
+  setSaveStatus("已导出新的修改版副本", "exported");
+  toast("已导出新副本，没有改动 Moyo 原文");
+}
+
+async function openSaveOptions() {
+  if (!state.current || elements.saveDialog.open) return;
+  elements.saveDialog.showModal();
+  const action = await waitForDialog(elements.saveDialog);
+  if (action === "export") await saveCopy();
+  else if (action === "original") await setDraftAsOriginal();
+}
+
+async function setDraftAsOriginal() {
+  if (!state.current) return;
+  await backupDraft();
+  const nextOriginal = editor.getText();
+  if (nextOriginal === state.current.original) return toast("当前修改稿已经是 Moyo 原文");
+  const confirmed = await confirmAction(
+    "设为 Moyo 新原文？",
+    "当前修改稿会成为新的原文对照和恢复基准。此操作只影响 Moyo 浏览器本地副本，不会覆盖“文件”App里的真实文件。",
+    "设为新原文",
+  );
+  if (!confirmed) return;
+
+  const previousOriginal = state.current.original;
+  const documentId = state.current.id;
+  state.current.original = nextOriginal;
+  state.current.draft = nextOriginal;
+  state.current.originalUpdatedAt = Date.now();
+  state.current.modifiedAt = Date.now();
+  state.needsBackup = false;
+  await putDocument(state.current);
+  elements.originalContent.textContent = nextOriginal;
+  updateDocumentStatus();
+  renderLibrary();
+  toast("已设为 Moyo 新原文", {
+    actionLabel: "撤销",
+    persistent: true,
+    onAction: async () => {
+      const document = await getDocument(documentId);
+      if (!document) return;
+      document.original = previousOriginal;
+      document.modifiedAt = Date.now();
+      await putDocument(document);
+      if (state.current?.id === documentId) {
+        state.current = document;
+        elements.originalContent.textContent = previousOriginal;
+        updateDocumentStatus();
+      }
+      renderLibrary();
+      toast("已恢复上一个 Moyo 原文");
+    },
+  });
 }
 
 async function discardChanges() {
