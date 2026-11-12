@@ -1,17 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Moyo">
-  <defs>
-    <linearGradient id="moyo-bg" x1="70" y1="32" x2="442" y2="480" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#345de8"/>
-      <stop offset="1" stop-color="#172554"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="112" fill="url(#moyo-bg)"/>
-  <path d="m106 154 184-62 112 102-62 226-204-38Z" fill="#79a4ff"/>
-  <path d="M126 102h170l90 90v220H126Z" fill="#f9f8f3"/>
-  <path d="M296 102v90h90Z" fill="#bcd5ff"/>
-  <path d="M171 246h101" stroke="#8c96aa" stroke-width="18" stroke-linecap="round"/>
-  <path d="M171 292h148" stroke="#ffd166" stroke-width="28" stroke-linecap="round"/>
-  <path d="M171 292h118" stroke="#172554" stroke-width="12" stroke-linecap="round"/>
-  <path d="M171 342h86" stroke="#8c96aa" stroke-width="18" stroke-linecap="round"/>
-  <path d="M319 271v43" stroke="#315fea" stroke-width="10" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Moyo 猫耳阅读图标">
+  <rect width="512" height="512" rx="112" fill="#fff9f0"/>
+  <circle cx="256" cy="258" r="174" fill="#f7e6d7"/>
+  <path d="M154 324V210l49-70 53 41 53-41 49 70v114c0 54-44 86-102 86s-102-32-102-86Z" fill="#d98b68"/>
+  <path d="m178 208 28-40 30 24Z" fill="#f6c1a8"/>
+  <path d="m276 192 30-24 28 40Z" fill="#f6c1a8"/>
+  <path d="M193 253q20 18 40 0M279 253q20 18 40 0" fill="none" stroke="#5a4036" stroke-width="13" stroke-linecap="round"/>
+  <path d="m256 278-12 9 12 10 12-10Z" fill="#5a4036"/>
+  <path d="M130 316c46-8 91 4 126 38 35-34 80-46 126-38v92c-47-6-90 7-126 38-36-31-79-44-126-38Z" fill="#fffdf8" stroke="#5a4036" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M256 354v92" fill="none" stroke="#5a4036" stroke-width="12" stroke-linecap="round"/>
+  <path d="M158 344c29 0 54 7 75 21M354 344c-29 0-54 7-75 21" fill="none" stroke="#e8b792" stroke-width="9" stroke-linecap="round"/>
 </svg>
