@@ -19,6 +19,7 @@ import {
   chooseZip,
   downloadBackup,
   downloadMarkdown,
+  groupImportedFiles,
 } from "./files.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -119,8 +120,10 @@ async function initialize() {
   applySidebarCollapsed(state.sidebarCollapsed);
 
   const migrated = await migrateFlutterDocuments();
+  const regrouped = await regroupLegacyFolderImports();
   await refreshLibrary();
   if (migrated) toast(`已从旧版 PadMD 迁移 ${migrated} 个文档`);
+  if (regrouped) toast(`已把 ${regrouped} 篇旧文件夹文档归入“此前导入的文件夹”`);
 
   const lastId = await getSetting("lastDocumentId", null);
   const initial = state.documents.find((item) => item.id === lastId) || state.documents[0];
@@ -137,6 +140,17 @@ async function initialize() {
       });
     },
   });
+}
+
+async function regroupLegacyFolderImports() {
+  const documents = await listDocuments({ includeTrashed: true });
+  const flatFolderDocuments = documents.filter((document) =>
+    document.source === "folder" && !(document.path || "").includes("/"));
+  for (const document of flatFolderDocuments) {
+    document.path = `此前导入的文件夹/${document.name}`;
+    await putDocument(document);
+  }
+  return flatFolderDocuments.length;
 }
 
 function wireEvents() {
@@ -439,7 +453,7 @@ async function importFiles() {
   try {
     const files = await chooseMarkdownFiles(elements.fileInput);
     const imported = await importFileRecords(files, "file");
-    if (imported) setLibraryNotice(`已导入 ${imported} 篇，放在“未分类”中；列表可上下滑动`);
+    if (imported.count) setLibraryNotice(`已导入 ${imported.count} 篇，放在“未分类”中；列表可上下滑动`);
   } catch (error) {
     showError("导入文件失败", error);
   }
@@ -449,11 +463,13 @@ async function importFolder() {
   try {
     setLibraryNotice("正在读取文件夹…");
     const result = await chooseFolder(elements.folderInput);
-    const imported = await importFileRecords(result.files, "folder");
+    const imported = await importFileRecords(result.files, "folder", result.root);
     if (result.mode === "flat-input") {
-      setLibraryNotice(`Safari 只返回了 ${imported} 篇且没有文件夹层级。请升级到 iPadOS 18.4+，或改用 ZIP。`, true);
+      setLibraryNotice(imported.count
+        ? `已导入 ${imported.count} 篇。Safari 未提供原文件夹名，已统一放入“${imported.root}”`
+        : "没有找到 Markdown 文档", !imported.count);
     } else if (result.mode !== "cancelled") {
-      setLibraryNotice(`已导入文件夹“${result.root || "Markdown"}”：${imported} 篇；列表可上下滑动`);
+      setLibraryNotice(`已导入文件夹“${imported.root || result.root || "Markdown"}”：${imported.count} 篇；列表可上下滑动`);
     }
   } catch (error) {
     setLibraryNotice("文件夹读取失败，请改用 ZIP 导入。", true);
@@ -464,29 +480,40 @@ async function importFolder() {
 async function importZip() {
   try {
     setLibraryNotice("正在解压 ZIP…");
-    const files = await chooseZip(elements.zipInput);
-    const imported = await importFileRecords(files, "zip");
-    setLibraryNotice(imported ? `已在本机解压 ZIP：导入 ${imported} 篇，并保留文件夹分类` : "ZIP 中没有 Markdown 文档", !imported);
+    const result = await chooseZip(elements.zipInput);
+    const imported = await importFileRecords(result.files, "zip", result.root);
+    setLibraryNotice(imported.count
+      ? `已在本机解压 ZIP：${imported.count} 篇放入“${imported.root}”`
+      : "ZIP 中没有 Markdown 文档", !imported.count);
   } catch (error) {
     setLibraryNotice("ZIP 读取失败，请确认压缩包未损坏。", true);
     showError("导入 ZIP 失败", error);
   }
 }
 
-async function importFileRecords(files, source) {
-  if (!files?.length) return 0;
+async function importFileRecords(files, source, preferredRoot = "") {
+  if (!files?.length) return { count: 0, root: "" };
   await backupDraft();
+  const existingRoots = state.documents
+    .map((document) => (document.path || "").split("/")[0])
+    .filter(Boolean);
+  const organized = source === "file"
+    ? { root: "未分类", files: files.map((file) => ({ ...file, path: `未分类/${file.name}` })) }
+    : groupImportedFiles(files, {
+        preferredRoot,
+        fallbackRoot: source === "zip" ? "ZIP 文件夹" : "导入文件夹",
+        existingRoots,
+      });
   const imported = [];
-  for (const file of files) {
-    const path = source === "file" ? `未分类/${file.name}` : file.path;
-    const document = createDocument({ name: file.name, path, content: file.content, source });
+  for (const file of organized.files) {
+    const document = createDocument({ name: file.name, path: file.path, content: file.content, source });
     await putDocument(document);
     imported.push(document);
   }
   await refreshLibrary();
   await openDocument(imported[0].id);
   toast(`已复制 ${imported.length} 个 Markdown 文档，不会修改原文件`);
-  return imported.length;
+  return { count: imported.length, root: organized.root };
 }
 
 async function saveCopy() {

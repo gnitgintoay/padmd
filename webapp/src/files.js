@@ -36,7 +36,7 @@ export async function chooseFolder(folderInput) {
   return {
     files,
     mode: hasRelativePaths ? "directory-input" : "flat-input",
-    root: files[0]?.path.split("/")[0] || "",
+    root: hasRelativePaths ? files[0]?.path.split("/")[0] || "" : "",
   };
 }
 
@@ -53,8 +53,40 @@ export async function chooseMarkdownFiles(fileInput) {
 
 export async function chooseZip(zipInput) {
   const [file] = await chooseInputFiles(zipInput);
-  if (!file) return [];
-  return extractMarkdownFromZip(new Uint8Array(await file.arrayBuffer()));
+  if (!file) return { files: [], root: "" };
+  return {
+    files: extractMarkdownFromZip(new Uint8Array(await file.arrayBuffer())),
+    root: file.name.replace(/\.zip$/i, "") || "ZIP 文件夹",
+  };
+}
+
+export function groupImportedFiles(files, { preferredRoot = "", fallbackRoot = "导入文件夹", existingRoots = [] } = {}) {
+  const normalizedFiles = (files || []).map((file) => ({
+    ...file,
+    path: normalizePath(file.path || file.name).replace(/^\/+|\/+$/g, ""),
+  }));
+  if (!normalizedFiles.length) return { files: [], root: "" };
+
+  const topLevels = new Set(
+    normalizedFiles
+      .filter((file) => file.path.includes("/"))
+      .map((file) => file.path.split("/")[0]),
+  );
+  const everyFileHasFolders = normalizedFiles.every((file) => file.path.includes("/"));
+  if (everyFileHasFolders && topLevels.size === 1) {
+    return { files: normalizedFiles, root: [...topLevels][0] };
+  }
+
+  const requestedRoot = normalizeFolderName(preferredRoot) || normalizeFolderName(fallbackRoot) || "导入文件夹";
+  const usedRoots = new Set(existingRoots.map(normalizeFolderName).filter(Boolean));
+  let root = requestedRoot;
+  let suffix = 2;
+  while (usedRoots.has(root)) root = `${requestedRoot} ${suffix++}`;
+
+  return {
+    root,
+    files: normalizedFiles.map((file) => ({ ...file, path: `${root}/${file.path}` })),
+  };
 }
 
 export function extractMarkdownFromZip(bytes) {
@@ -128,6 +160,14 @@ function chooseInputFiles(input) {
 
 function normalizePath(path) {
   return path.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/{2,}/g, "/");
+}
+
+function normalizeFolderName(name) {
+  return normalizePath(String(name || ""))
+    .split("/")
+    .filter(Boolean)
+    .join("-")
+    .trim();
 }
 
 function downloadBlob(blob, name) {
