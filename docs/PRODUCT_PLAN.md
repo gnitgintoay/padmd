@@ -1,43 +1,53 @@
-# Moyo · 墨页 product plan
+# Moyo 产品路线图
 
-## Product direction
+这份路线图描述产品方向，不承诺具体发布日期。优先级以数据安全、文档可靠性和平板使用体验为核心。
 
-Moyo is a local-first Markdown workspace for Android tablets and iPad. It is
-optimized for touch, stylus-adjacent workflows, external keyboards, portrait
-reading, and landscape split-screen editing.
+## 产品原则
 
-## Version 0.1 — working MVP
+1. **本地优先**：默认不要求账号，不把文档上传到服务器。
+2. **不破坏原文件**：导入原文、恢复草稿和导出副本明确分离。
+3. **平板优先**：触控、蓝牙键盘、横竖屏和窄屏都应自然可用。
+4. **可理解**：保存状态、导入结果和风险必须用普通语言说明。
+5. **渐进增强**：基础编辑在主流浏览器可用，高级文件能力按平台增强。
 
-- Local Markdown import
-- Recent-document library
-- Markdown source editing and GFM preview
-- Adaptive split view at 800 logical pixels
-- Debounced automatic save into the app document directory
-- Light and dark themes
+## 当前阶段：公开测试版
 
-## Version 0.2 — practical file workflow
+已经完成：
 
-- Rename, duplicate, delete, export, and Save As
-- Open and export whole folders
-- Relative local image resolution
-- Document outline, full-text search, and recent positions
-- Undo/redo toolbar and hardware keyboard shortcuts
-- Recovery snapshots and conflict handling
+- Markdown 单篇、多篇、文件夹和 ZIP 导入；
+- 文件夹层级、折叠计数、重命名、移动、合并与回收站；
+- 单栏编辑、原文对照、可调分栏和用户驱动同步滚动；
+- 恢复草稿、保存修改版副本和全库 ZIP 备份；
+- 搜索名称与路径、格式工具栏、查找替换和键盘快捷键；
+- 日间/夜间主题、响应式布局和 PWA 离线缓存；
+- iPad、Android 平板和手机适配。
 
-## Version 0.3 — Typora-like editing
+## 下一阶段：安全与可靠性
 
-- Block-based Markdown editor
-- Inline rendering for headings, emphasis, links, and code
-- Tables, task lists, footnotes, and math
-- Drag/drop and paste image handling
-- Theme and typography customization
-- Optional HTML reading
+- 隐私中心：显示本机文档数、存储位置和最近备份时间；
+- 一键恢复 Moyo 备份包；
+- 重复导入检测：跳过、保留副本或更新本地副本；
+- 导入和解压进度，失败文件清单；
+- 本地锁定与加密方案验证；
+- 独立部署域名，缩小同源存储风险；
+- 更清晰的存储空间与浏览器清理风险提醒。
 
-## Platform notes
+## 后续阶段：知识库能力
 
-- Android uses the system document picker; no broad storage permission is
-  required.
-- iPad uses the system document picker and the app's sandboxed Documents area.
-- iOS release builds must be produced and signed on macOS with Xcode.
-- Imported files are copied into the app library in 0.1. Export/Save As is
-  planned for 0.2 so edits can be sent back to Files or cloud providers.
+- Markdown 标题大纲和跳转；
+- 全库正文搜索；
+- 收藏、最近编辑和标签；
+- 相对 Markdown 链接；
+- 图片导入、预览和相对路径管理；
+- 文档版本快照与恢复。
+
+## 长期探索
+
+- HTML 阅读与导出；
+- PDF 导出；
+- WebDAV、GitHub 或云盘的可选同步；
+- 原生 Android 包装；
+- 需要 macOS/Xcode 条件下的原生 iPad 版本；
+- 可选的 Typora 式所见即所得编辑。
+
+云同步和原生应用不会以牺牲本地优先与数据可控为代价。

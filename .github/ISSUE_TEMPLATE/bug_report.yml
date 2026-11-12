@@ -1,0 +1,57 @@
+name: Bug 报告
+description: 报告可复现的功能、兼容性或数据问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: 请勿上传私人 Markdown、身份信息或未脱敏截图。涉及安全漏洞时请先阅读 SECURITY.md。
+  - type: input
+    id: environment
+    attributes:
+      label: 设备与环境
+      description: 例如 iPad Air / iPadOS 18.4 / Safari，或 Android 15 / Chrome 140
+      placeholder: 设备、系统、浏览器及版本
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 问题区域
+      options:
+        - 文件或文件夹导入
+        - 编辑器与格式
+        - 原文对照与滚动
+        - 保存、导出或备份
+        - 文件夹管理与回收站
+        - PWA 安装或离线使用
+        - 视觉与响应式布局
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: "1. 打开……\n2. 点击……\n3. 出现……"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+    validations:
+      required: true
+  - type: checkboxes
+    id: backup
+    attributes:
+      label: 数据安全确认
+      options:
+        - label: 我已备份重要文档，并确认提交内容不含私人资料。
+          required: true

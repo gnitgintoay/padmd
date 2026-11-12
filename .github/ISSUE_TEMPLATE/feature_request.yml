@@ -1,0 +1,35 @@
+name: 功能建议
+description: 提议新的使用流程或体验改进
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到的问题
+      description: 请先说明使用场景，不要只描述按钮或技术方案。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 主要平台
+      options:
+        - iPad
+        - Android 平板
+        - 手机
+        - 桌面浏览器
+        - 所有平台
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: 补充说明或取舍
+      description: 例如对本地优先、数据安全、触控操作或性能的影响。
