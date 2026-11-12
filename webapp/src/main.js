@@ -164,6 +164,9 @@ function wireEvents() {
   });
 
   elements.librarySearch.addEventListener("input", renderLibrary);
+  elements.documentTree.addEventListener("click", (event) => {
+    if (!event.target.closest(".folder-menu-button, .folder-menu-popover")) closeFolderMenus();
+  });
   elements.newButton.addEventListener("click", createNewDocument);
   elements.fileButton.addEventListener("click", importFiles);
   elements.folderButton.addEventListener("click", importFolder);
@@ -342,19 +345,103 @@ function renderTreeNode(node, isRoot = false, parentPath = "") {
     const count = document.createElement("span");
     count.className = "folder-count";
     count.textContent = String(countTreeDocuments(child));
-    summary.append(icon, label, count);
+    const menuButton = document.createElement("button");
+    menuButton.className = "folder-menu-button";
+    menuButton.type = "button";
+    menuButton.textContent = "⋮";
+    menuButton.title = `管理文件夹“${name}”`;
+    menuButton.setAttribute("aria-label", `管理文件夹“${name}”`);
+    const popover = createFolderMenu(folderPath, menuButton);
+    menuButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleFolderMenu(popover, menuButton);
+    });
+    summary.append(icon, label, count, menuButton);
+    wireFolderLongPress(summary, popover, menuButton);
     details.addEventListener("toggle", () => {
       if (details.open) state.collapsedFolders.delete(folderPath);
       else state.collapsedFolders.add(folderPath);
       setSetting("collapsedFolders", [...state.collapsedFolders]);
     });
-    details.append(summary, renderTreeNode(child, false, folderPath));
+    details.append(summary, popover, renderTreeNode(child, false, folderPath));
     fragment.append(details);
   }
   node.documents
     .sort((a, b) => a.name.localeCompare(b.name, "zh-CN", { numeric: true }))
     .forEach((document) => fragment.append(renderDocumentRow(document, isRoot)));
   return fragment;
+}
+
+function createFolderMenu(folderPath, anchor) {
+  const popover = document.createElement("div");
+  popover.className = "folder-menu-popover";
+  popover.hidden = true;
+  for (const [action, label] of [
+    ["new", "在此新建文档"],
+    ["rename", "重命名文件夹"],
+    ["move", "移动文件夹"],
+    ["delete", "移到回收站"],
+  ]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.action = action;
+    button.textContent = label;
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      popover.hidden = true;
+      await handleFolderAction(folderPath, action);
+    });
+    popover.append(button);
+  }
+  popover.addEventListener("click", (event) => event.stopPropagation());
+  anchor.setAttribute("aria-expanded", "false");
+  return popover;
+}
+
+function toggleFolderMenu(popover, anchor, forceOpen = null) {
+  const shouldOpen = forceOpen ?? popover.hidden;
+  closeFolderMenus();
+  if (!shouldOpen) return;
+  popover.hidden = false;
+  anchor.setAttribute("aria-expanded", "true");
+  const rect = anchor.getBoundingClientRect();
+  popover.style.left = `${Math.max(8, rect.right - 166)}px`;
+  popover.style.top = `${Math.min(innerHeight - 178, rect.bottom + 4)}px`;
+}
+
+function closeFolderMenus() {
+  document.querySelectorAll(".folder-menu-popover:not([hidden])").forEach((menu) => {
+    menu.hidden = true;
+    menu.parentElement?.querySelector(".folder-menu-button")?.setAttribute("aria-expanded", "false");
+  });
+}
+
+function wireFolderLongPress(summary, popover, anchor) {
+  let timer = null;
+  let openedByLongPress = false;
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = null;
+  };
+  summary.addEventListener("pointerdown", (event) => {
+    if (event.target.closest("button")) return;
+    openedByLongPress = false;
+    timer = setTimeout(() => {
+      openedByLongPress = true;
+      toggleFolderMenu(popover, anchor, true);
+    }, 520);
+  });
+  summary.addEventListener("pointerup", cancel);
+  summary.addEventListener("pointermove", cancel);
+  summary.addEventListener("pointercancel", cancel);
+  summary.addEventListener("pointerleave", cancel);
+  summary.addEventListener("click", (event) => {
+    if (!openedByLongPress) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openedByLongPress = false;
+  });
 }
 
 function countTreeDocuments(node) {
@@ -599,6 +686,8 @@ async function renameCurrentDocument() {
 }
 
 async function handleDocumentAction(document, action) {
+  await backupDraft();
+  document = await getDocument(document.id) || document;
   if (action === "rename") {
     const name = await promptRename(document.name);
     if (!name) return;
@@ -609,6 +698,11 @@ async function handleDocumentAction(document, action) {
     document.path = parts.join("/");
     document.modifiedAt = Date.now();
     await putDocument(document);
+    if (state.current?.id === document.id) {
+      state.current = document;
+      elements.documentName.textContent = document.name;
+      elements.folderPath.textContent = document.path;
+    }
   } else if (action === "category") {
     const currentCategory = document.path.split("/").slice(0, -1).join("/");
     const value = await promptText("移动到分类", "分类路径（例如：学习/课程；留空放到根目录）", currentCategory);
@@ -648,6 +742,115 @@ async function handleDocumentAction(document, action) {
     toast("已移到回收站");
   }
   await refreshLibrary();
+}
+
+async function handleFolderAction(folderPath, action) {
+  const documents = state.documents.filter((document) => document.path.startsWith(`${folderPath}/`));
+  if (!documents.length) return;
+  const folderName = folderPath.split("/").at(-1);
+  const parentPath = folderPath.split("/").slice(0, -1).join("/");
+
+  if (action === "new") {
+    await backupDraft();
+    const usedPaths = new Set(state.documents.map((document) => document.path.toLowerCase()));
+    let name = "未命名文档.md";
+    let suffix = 2;
+    while (usedPaths.has(`${folderPath}/${name}`.toLowerCase())) name = `未命名文档 ${suffix++}.md`;
+    const created = createDocument({
+      name,
+      path: `${folderPath}/${name}`,
+      content: "# 未命名文档\n\n开始写作…\n",
+      source: "created",
+    });
+    await putDocument(created);
+    state.collapsedFolders.delete(folderPath);
+    await setSetting("collapsedFolders", [...state.collapsedFolders]);
+    await refreshLibrary();
+    await openDocument(created.id);
+    toast(`已在“${folderName}”中新建文档`);
+    return;
+  }
+
+  if (action === "rename") {
+    const value = await promptText("重命名文件夹", "新的文件夹名称", folderName);
+    if (value === null) return;
+    const normalized = normalizeCategory(value);
+    if (!normalized || normalized.includes("/")) return toast("文件夹名称不能包含斜杠");
+    const nextPath = parentPath ? `${parentPath}/${normalized}` : normalized;
+    if (nextPath === folderPath) return;
+    if (!await confirmFolderMerge(folderPath, nextPath)) return;
+    await relocateFolder(folderPath, nextPath, `文件夹已重命名为“${normalized}”`);
+    return;
+  }
+
+  if (action === "move") {
+    const value = await promptText("移动文件夹", "目标上级文件夹（留空移动到根目录）", parentPath);
+    if (value === null) return;
+    const targetParent = normalizeCategory(value);
+    if (targetParent === folderPath || targetParent.startsWith(`${folderPath}/`)) {
+      return toast("不能把文件夹移动到它自己内部");
+    }
+    const nextPath = targetParent ? `${targetParent}/${folderName}` : folderName;
+    if (nextPath === folderPath) return;
+    if (!await confirmFolderMerge(folderPath, nextPath)) return;
+    await relocateFolder(folderPath, nextPath, targetParent ? `文件夹已移动到“${targetParent}”` : "文件夹已移动到根目录");
+    return;
+  }
+
+  if (action === "delete") {
+    const confirmed = await confirmAction(
+      `将“${folderName}”移到回收站？`,
+      `其中 ${documents.length} 篇文档会进入 Moyo 回收站，不会删除“文件”App 中的原文件。`,
+      "移到回收站",
+    );
+    if (!confirmed) return;
+    await backupDraft();
+    const freshDocuments = (await listDocuments()).filter((document) => document.path.startsWith(`${folderPath}/`));
+    const affectedIds = new Set(freshDocuments.map((document) => document.id));
+    for (const document of freshDocuments) {
+      document.trashed = true;
+      document.modifiedAt = Date.now();
+      await putDocument(document);
+    }
+    if (state.current && affectedIds.has(state.current.id)) {
+      state.current = null;
+      elements.editorScreen.hidden = true;
+      elements.welcome.hidden = false;
+    }
+    await refreshLibrary();
+    toast(`“${folderName}”中的 ${freshDocuments.length} 篇文档已移到回收站`);
+  }
+}
+
+async function confirmFolderMerge(oldPath, nextPath) {
+  const conflicts = state.documents.some((document) =>
+    !document.path.startsWith(`${oldPath}/`) && document.path.startsWith(`${nextPath}/`));
+  if (!conflicts) return true;
+  return confirmAction(
+    "合并同名文件夹？",
+    `“${nextPath}”已经存在。继续后两个文件夹的内容会显示在一起，文档内容不会被覆盖。`,
+    "合并",
+  );
+}
+
+async function relocateFolder(oldPath, nextPath, message) {
+  await backupDraft();
+  const affected = (await listDocuments()).filter((document) => document.path.startsWith(`${oldPath}/`));
+  const now = Date.now();
+  for (const document of affected) {
+    document.path = `${nextPath}${document.path.slice(oldPath.length)}`;
+    document.modifiedAt = now;
+    await putDocument(document);
+    if (state.current?.id === document.id) {
+      state.current.path = document.path;
+      elements.folderPath.textContent = document.path;
+    }
+  }
+  state.collapsedFolders = new Set([...state.collapsedFolders].map((path) =>
+    path === oldPath || path.startsWith(`${oldPath}/`) ? `${nextPath}${path.slice(oldPath.length)}` : path));
+  await setSetting("collapsedFolders", [...state.collapsedFolders]);
+  await refreshLibrary();
+  toast(message);
 }
 
 async function promptRename(currentName) {
