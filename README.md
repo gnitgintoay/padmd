@@ -1,6 +1,6 @@
-# PadMD
+# Moyo · 墨页
 
-PadMD 是一个为 iPad 和 Android 平板设计的轻量、本地优先 Markdown 阅读与编辑 PWA。
+Moyo（中文名“墨页”）是一个为 iPad、Android 平板和手机设计的轻量、本地优先 Markdown 阅读与编辑 PWA。
 
 在线使用：<https://gnitgintoay.github.io/padmd/>
 
@@ -22,14 +22,14 @@ PadMD 是一个为 iPad 和 Android 平板设计的轻量、本地优先 Markdow
 - PWA 离线缓存，可从 Safari“添加到主屏幕”
 - 夜间模式使用高对比度蓝色编辑光标
 
-PadMD 导入的是浏览器本地副本。iPad 网页不能持续写入“文件”App 中的原文件，因此需要通过“保存副本”导出修改稿。清除 Safari 网站数据也会清除本地文档库，请定期使用“备份全部”。
+Moyo 导入的是浏览器本地副本。iPad 网页不能持续写入“文件”App 中的原文件，因此需要通过“保存副本”导出修改稿。清除 Safari 网站数据也会清除本地文档库，请定期使用“备份全部”。
 
 ## iPad 使用
 
 1. 用 Safari 打开上面的在线地址。
 2. 点“分享”按钮。
 3. 选择“添加到主屏幕”。
-4. 从主屏幕打开 PadMD。
+4. 从主屏幕打开 Moyo。
 
 iPadOS / Safari 18.4 及更高版本支持完整文件夹选择。较旧版本请先在“文件”App 中压缩文件夹，再使用“导入 ZIP”。
 
@@ -57,6 +57,6 @@ npm run build
 
 ## 开源说明
 
-PadMD 使用 CodeMirror 6、fflate 和 Vite。文件树与文件夹读取设计参考了 MIT 许可的 [techjewel/mdread](https://github.com/techjewel/mdread)。完整第三方声明见 `webapp/public/THIRD_PARTY_NOTICES.md`。
+Moyo 使用 CodeMirror 6、fflate 和 Vite。文件树与文件夹读取设计参考了 MIT 许可的 [techjewel/mdread](https://github.com/techjewel/mdread)。完整第三方声明见 `webapp/public/THIRD_PARTY_NOTICES.md`。
 
 本项目以 MIT License 发布。

@@ -1,8 +1,8 @@
-# PadMD product plan
+# Moyo · 墨页 product plan
 
 ## Product direction
 
-PadMD is a local-first Markdown workspace for Android tablets and iPad. It is
+Moyo is a local-first Markdown workspace for Android tablets and iPad. It is
 optimized for touch, stylus-adjacent workflows, external keyboards, portrait
 reading, and landscape split-screen editing.
 

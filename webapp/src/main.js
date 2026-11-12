@@ -93,8 +93,8 @@ const editor = createMarkdownEditor(elements.editor, {
 });
 
 initialize().catch((error) => {
-  console.error("PadMD failed to start", error);
-  toast(`PadMD 启动失败：${error?.message || error}`);
+  console.error("Moyo failed to start", error);
+  toast(`Moyo 启动失败：${error?.message || error}`);
 });
 
 async function initialize() {
@@ -126,7 +126,7 @@ async function initialize() {
   registerSW({
     immediate: true,
     onNeedRefresh() {
-      toast("PadMD 已更新，下次打开将使用新版本");
+      toast("Moyo 已更新，下次打开将使用新版本");
     },
   });
 }
@@ -558,7 +558,7 @@ async function handleDocumentAction(document, action) {
     await putDocument(copy);
     toast("已创建文档副本");
   } else if (action === "delete") {
-    const confirmed = await confirmAction("移到回收站？", "这里只影响 PadMD 的浏览器本地副本，不会删除“文件”App中的原文件。", "移到回收站");
+    const confirmed = await confirmAction("移到回收站？", "这里只影响 Moyo 的浏览器本地副本，不会删除“文件”App中的原文件。", "移到回收站");
     if (!confirmed) return;
     document.trashed = true;
     document.modifiedAt = Date.now();

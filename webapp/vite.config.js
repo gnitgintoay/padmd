@@ -13,11 +13,11 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icon.svg", "THIRD_PARTY_NOTICES.md"],
+      includeAssets: ["icon.svg", "icon-180.png", "icon-192.png", "icon-512.png", "THIRD_PARTY_NOTICES.md"],
       manifest: {
-        name: "PadMD Markdown 编辑器",
-        short_name: "PadMD",
-        description: "适合平板的本地 Markdown 阅读与编辑工具",
+        name: "Moyo 墨页 · Markdown 编辑器",
+        short_name: "Moyo",
+        description: "适合平板与手机的本地 Markdown 阅读与编辑工具",
         lang: "zh-CN",
         start_url: base,
         scope: base,
@@ -27,10 +27,22 @@ export default defineConfig({
         theme_color: "#101114",
         icons: [
           {
-            src: "icon.svg",
-            sizes: "any",
-            type: "image/svg+xml",
-            purpose: "any maskable",
+            src: "icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
       },

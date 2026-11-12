@@ -18,7 +18,7 @@ class _PadMdAppState extends State<PadMdApp> {
   Widget build(BuildContext context) {
     const seed = Color(0xFF3D5A80);
     return MaterialApp(
-      title: 'PadMD',
+      title: 'Moyo',
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       theme: ThemeData(

@@ -123,7 +123,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('删除本地文档？'),
-            content: const Text('只删除 PadMD 中的副本，不会删除“文件”App里的原文件。'),
+            content: const Text('只删除 Moyo 中的副本，不会删除“文件”App里的原文件。'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -149,7 +149,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PadMD'),
+        title: const Text('Moyo'),
         actions: [
           IconButton(
             tooltip: '切换明暗主题',

@@ -1,6 +1,6 @@
 # Third-party notices
 
-PadMD's folder-import architecture and local-first file workflow were informed
+Moyo's folder-import architecture and local-first file workflow were informed
 by **mdread** (https://github.com/techjewel/mdread), used under the MIT License.
 
 MIT License
@@ -25,6 +25,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-PadMD also bundles CodeMirror 6 and fflate, each distributed under the MIT
+Moyo also bundles CodeMirror 6 and fflate, each distributed under the MIT
 License. Their copyright and license texts are included in the installed npm
 packages and generated dependency metadata.

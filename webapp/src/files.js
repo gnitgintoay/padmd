@@ -1,6 +1,6 @@
 /*
  * Folder-picker fallback and recursive traversal are adapted from the design of
- * techjewel/mdread (MIT). PadMD stores imported text as a safe browser-local
+ * techjewel/mdread (MIT). Moyo stores imported text as a safe browser-local
  * copy and never writes to the chosen source folder automatically.
  */
 
@@ -93,7 +93,7 @@ export function downloadBackup(documents) {
   }
   const bytes = zipSync(entries, { level: 6 });
   const date = new Date().toISOString().slice(0, 10);
-  downloadBlob(new Blob([bytes], { type: "application/zip" }), `PadMD-备份-${date}.zip`);
+  downloadBlob(new Blob([bytes], { type: "application/zip" }), `Moyo-备份-${date}.zip`);
 }
 
 async function walkDirectoryHandle(rootHandle) {
