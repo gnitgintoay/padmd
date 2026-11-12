@@ -252,12 +252,6 @@ dialog p { color: var(--muted); line-height: 1.6; }
 dialog label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; }
 dialog input { width: 100%; padding: 10px 12px; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
-.save-dialog p { margin: -5px 0 16px; }
-.save-choices { display: grid; gap: 9px; }
-.save-choices button { display: grid; gap: 4px; width: 100%; padding: 13px 14px; text-align: left; background: var(--panel-2); }
-.save-choices button strong { color: var(--text); font-size: 14px; }
-.save-choices button span { color: var(--muted); font-size: 12px; line-height: 1.45; }
-.save-choices .primary-choice { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 
 .sidebar-scrim { display: none; }
 

@@ -54,6 +54,7 @@ const elements = {
   documentName: $("#documentName"),
   saveStatus: $("#saveStatus"),
   discardButton: $("#discardButton"),
+  overwriteOriginalButton: $("#overwriteOriginalButton"),
   saveCopyButton: $("#saveCopyButton"),
   singleModeButton: $("#singleModeButton"),
   compareModeButton: $("#compareModeButton"),
@@ -78,7 +79,6 @@ const elements = {
   confirmDialog: $("#confirmDialog"),
   confirmTitle: $("#confirmTitle"),
   confirmMessage: $("#confirmMessage"),
-  saveDialog: $("#saveDialog"),
   toast: $("#toast"),
   toastMessage: $("#toastMessage"),
   toastAction: $("#toastAction"),
@@ -102,7 +102,7 @@ let syncScrollOwner = null;
 
 const editor = createMarkdownEditor(elements.editor, {
   onChange: handleEditorUpdate,
-  onSave: openSaveOptions,
+  onSave: saveCopy,
 });
 
 initialize().catch((error) => {
@@ -208,7 +208,8 @@ function wireEvents() {
   elements.sidebarScrim.addEventListener("click", () => toggleSidebar(false));
   elements.documentName.addEventListener("click", renameCurrentDocument);
   elements.discardButton.addEventListener("click", discardChanges);
-  elements.saveCopyButton.addEventListener("click", openSaveOptions);
+  elements.overwriteOriginalButton.addEventListener("click", setDraftAsOriginal);
+  elements.saveCopyButton.addEventListener("click", saveCopy);
   elements.singleModeButton.addEventListener("click", () => setMode("single"));
   elements.compareModeButton.addEventListener("click", () => setMode("compare"));
   elements.findButton.addEventListener("click", editor.find);
@@ -672,6 +673,7 @@ function updateDocumentStatus() {
   if (!state.current) return;
   const changed = editor.getText() !== state.current.original;
   elements.discardButton.disabled = !changed;
+  elements.overwriteOriginalButton.disabled = !changed;
   if (!changed) setSaveStatus("未修改", "clean");
   else if (state.needsBackup) setSaveStatus("有未备份的修改", "pending");
   else setSaveStatus("恢复草稿已备份（未覆盖原文件）", "backed-up");
@@ -782,14 +784,6 @@ async function saveCopy() {
   await putDocument(state.current);
   setSaveStatus("已导出新的修改版副本", "exported");
   toast("已导出新副本，没有改动 Moyo 原文");
-}
-
-async function openSaveOptions() {
-  if (!state.current || elements.saveDialog.open) return;
-  elements.saveDialog.showModal();
-  const action = await waitForDialog(elements.saveDialog);
-  if (action === "export") await saveCopy();
-  else if (action === "original") await setDraftAsOriginal();
 }
 
 async function setDraftAsOriginal() {
