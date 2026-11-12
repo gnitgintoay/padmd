@@ -798,9 +798,9 @@ async function setDraftAsOriginal() {
   const nextOriginal = editor.getText();
   if (nextOriginal === state.current.original) return toast("当前修改稿已经是 Moyo 原文");
   const confirmed = await confirmAction(
-    "设为 Moyo 新原文？",
+    "覆盖原文？",
     "当前修改稿会成为新的原文对照和恢复基准。此操作只影响 Moyo 浏览器本地副本，不会覆盖“文件”App里的真实文件。",
-    "设为新原文",
+    "覆盖原文",
   );
   if (!confirmed) return;
 
@@ -815,7 +815,7 @@ async function setDraftAsOriginal() {
   elements.originalContent.textContent = nextOriginal;
   updateDocumentStatus();
   renderLibrary();
-  toast("已设为 Moyo 新原文", {
+  toast("已覆盖 Moyo 内部原文", {
     actionLabel: "撤销",
     persistent: true,
     onAction: async () => {
