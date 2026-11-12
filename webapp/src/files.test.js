@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { strToU8, zipSync } from "fflate";
 
-import { extractMarkdownFromZip, groupImportedFiles, isMarkdown } from "./files.js";
+import { createBackupArchive, extractMarkdownFromZip, groupImportedFiles, isMarkdown, readZipPackage } from "./files.js";
 
 describe("isMarkdown", () => {
   it("accepts common Markdown extensions case-insensitively", () => {
@@ -88,5 +88,23 @@ describe("groupImportedFiles", () => {
 
     expect(result.root).toBe("项目资料");
     expect(result.files[0].path).toBe("项目资料/说明.md");
+  });
+});
+
+describe("Moyo backup package", () => {
+  it("preserves original, draft, path, and history alongside readable Markdown", () => {
+    const bytes = createBackupArchive([{
+      name: "笔记.md", path: "课程/笔记.md", original: "原文", draft: "修改稿",
+      source: "folder", createdAt: 1, modifiedAt: 2,
+      history: [{ id: "v1", content: "旧稿", label: "测试", createdAt: 1 }],
+    }], "2026-11-12T00:00:00.000Z");
+    const restored = readZipPackage(bytes);
+    expect(restored.files[0]).toMatchObject({ path: "课程/笔记.md", content: "修改稿" });
+    expect(restored.backup).toMatchObject({
+      format: "moyo-backup",
+      exportedAt: "2026-11-12T00:00:00.000Z",
+      documents: [{ path: "课程/笔记.md", original: "原文", draft: "修改稿" }],
+    });
+    expect(restored.backup.documents[0].history).toHaveLength(1);
   });
 });

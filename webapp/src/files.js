@@ -53,9 +53,10 @@ export async function chooseMarkdownFiles(fileInput) {
 
 export async function chooseZip(zipInput) {
   const [file] = await chooseInputFiles(zipInput);
-  if (!file) return { files: [], root: "" };
+  if (!file) return { files: [], root: "", backup: null };
+  const packageData = readZipPackage(new Uint8Array(await file.arrayBuffer()));
   return {
-    files: extractMarkdownFromZip(new Uint8Array(await file.arrayBuffer())),
+    ...packageData,
     root: file.name.replace(/\.zip$/i, "") || "ZIP 文件夹",
   };
 }
@@ -98,6 +99,10 @@ export function groupImportedFiles(files, { preferredRoot = "", fallbackRoot = "
 
 export function extractMarkdownFromZip(bytes) {
   const archive = unzipSync(bytes);
+  return extractMarkdownFromArchive(archive);
+}
+
+function extractMarkdownFromArchive(archive) {
   const files = [];
   for (const [path, bytes] of Object.entries(archive)) {
     if (!isMarkdown(path) || path.endsWith("/")) continue;
@@ -111,12 +116,33 @@ export function extractMarkdownFromZip(bytes) {
   return files.sort((a, b) => a.path.localeCompare(b.path, "zh-CN", { numeric: true }));
 }
 
+export function readZipPackage(bytes) {
+  const archive = unzipSync(bytes);
+  let backup = null;
+  const manifestBytes = archive[".moyo/backup.json"];
+  if (manifestBytes) {
+    try {
+      const parsed = JSON.parse(strFromU8(manifestBytes));
+      if (parsed?.format === "moyo-backup" && Array.isArray(parsed.documents)) backup = parsed;
+    } catch (error) {
+      console.warn("Ignoring damaged Moyo backup manifest", error);
+    }
+  }
+  return { files: extractMarkdownFromArchive(archive), backup };
+}
+
 export function downloadMarkdown(document, content) {
   const stem = document.name.replace(/\.(?:md|markdown|mdown|mkd)$/i, "");
   downloadBlob(new Blob([content], { type: "text/markdown;charset=utf-8" }), `${stem}-修改版.md`);
 }
 
 export function downloadBackup(documents) {
+  const bytes = createBackupArchive(documents);
+  const date = new Date().toISOString().slice(0, 10);
+  downloadBlob(new Blob([bytes], { type: "application/zip" }), `Moyo-备份-${date}.zip`);
+}
+
+export function createBackupArchive(documents, exportedAt = new Date().toISOString()) {
   const entries = {};
   const used = new Set();
   for (const document of documents) {
@@ -130,9 +156,22 @@ export function downloadBackup(documents) {
     used.add(path);
     entries[path] = strToU8(document.draft ?? document.original ?? "");
   }
-  const bytes = zipSync(entries, { level: 6 });
-  const date = new Date().toISOString().slice(0, 10);
-  downloadBlob(new Blob([bytes], { type: "application/zip" }), `Moyo-备份-${date}.zip`);
+  entries[".moyo/backup.json"] = strToU8(JSON.stringify({
+    format: "moyo-backup",
+    version: 1,
+    exportedAt,
+    documents: documents.map((document) => ({
+      name: document.name,
+      path: document.path,
+      original: document.original ?? "",
+      draft: document.draft ?? document.original ?? "",
+      source: document.source,
+      createdAt: document.createdAt,
+      modifiedAt: document.modifiedAt,
+      history: Array.isArray(document.history) ? document.history : [],
+    })),
+  }));
+  return zipSync(entries, { level: 6 });
 }
 
 async function walkDirectoryHandle(rootHandle) {

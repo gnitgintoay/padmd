@@ -156,6 +156,15 @@
       </form>
     </dialog>
 
+    <dialog id="historyDialog" class="history-dialog">
+      <form method="dialog">
+        <h2>历史版本</h2>
+        <p>自动保留最近 10 个关键版本。恢复后会作为修改稿打开，不会覆盖当前原文。</p>
+        <div id="historyList" class="history-list"></div>
+        <div class="dialog-actions"><button value="cancel">关闭</button></div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast">
       <span id="toastMessage" role="status" aria-live="polite"></span>
       <button id="toastAction" type="button" hidden></button>

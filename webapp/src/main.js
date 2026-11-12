@@ -79,6 +79,8 @@ const elements = {
   confirmDialog: $("#confirmDialog"),
   confirmTitle: $("#confirmTitle"),
   confirmMessage: $("#confirmMessage"),
+  historyDialog: $("#historyDialog"),
+  historyList: $("#historyList"),
   toast: $("#toast"),
   toastMessage: $("#toastMessage"),
   toastAction: $("#toastAction"),
@@ -595,7 +597,7 @@ function renderDocumentRow(doc) {
   summary.title = "文档操作";
   const popover = document.createElement("div");
   popover.className = "doc-menu-popover";
-  for (const [action, label] of [["rename", "重命名"], ["category", "移动到分类"], ["duplicate", "创建副本"], ["delete", "移到回收站"]]) {
+  for (const [action, label] of [["rename", "重命名"], ["category", "移动到分类"], ["duplicate", "创建副本"], ["history", "历史版本"], ["delete", "移到回收站"]]) {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.action = action;
@@ -736,6 +738,11 @@ async function importZip() {
   try {
     setLibraryNotice("正在解压 ZIP…");
     const result = await chooseZip(elements.zipInput);
+    if (result.backup) {
+      const restored = await restoreMoyoBackup(result.backup);
+      setLibraryNotice(`已恢复 Moyo 备份：${restored.count} 篇放入“${restored.root}”`);
+      return;
+    }
     const imported = await importFileRecords(result.files, "zip", result.root);
     setLibraryNotice(imported.count
       ? `已在本机解压 ZIP：${imported.count} 篇放入“${imported.root}”`
@@ -744,6 +751,34 @@ async function importZip() {
     setLibraryNotice("ZIP 读取失败，请确认压缩包未损坏。", true);
     showError("导入 ZIP 失败", error);
   }
+}
+
+async function restoreMoyoBackup(backup) {
+  await backupDraft();
+  const roots = new Set(state.documents.map((item) => (item.path || "").split("/")[0]));
+  const date = String(backup.exportedAt || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const base = `Moyo 恢复 ${date}`;
+  let root = base;
+  let suffix = 2;
+  while (roots.has(root)) root = `${base} ${suffix++}`;
+  const restored = [];
+  for (const record of backup.documents) {
+    if (!record || typeof record.name !== "string") continue;
+    const document = createDocument({
+      name: record.name,
+      path: `${root}/${String(record.path || record.name).replace(/^\/+/, "")}`,
+      content: typeof record.original === "string" ? record.original : "",
+      source: "backup-restore",
+    });
+    document.draft = typeof record.draft === "string" ? record.draft : document.original;
+    document.history = Array.isArray(record.history) ? record.history.slice(0, 10) : [];
+    await putDocument(document);
+    restored.push(document);
+  }
+  await refreshLibrary();
+  if (restored[0]) await openDocument(restored[0].id);
+  toast(`已恢复 ${restored.length} 篇文档，原有文档未被覆盖`);
+  return { count: restored.length, root };
 }
 
 async function importFileRecords(files, source, preferredRoot = "") {
@@ -800,6 +835,7 @@ async function setDraftAsOriginal() {
 
   const previousOriginal = state.current.original;
   const documentId = state.current.id;
+  addHistorySnapshot(state.current, previousOriginal, "覆盖前的原文");
   state.current.original = nextOriginal;
   state.current.draft = nextOriginal;
   state.current.originalUpdatedAt = Date.now();
@@ -833,6 +869,7 @@ async function discardChanges() {
   if (!state.current || editor.getText() === state.current.original) return;
   const confirmed = await confirmAction("恢复原文？", "当前修改稿和恢复草稿将被清除，但导入的原始内容会保留。", "恢复原文");
   if (!confirmed) return;
+  addHistorySnapshot(state.current, editor.getText(), "恢复原文前的修改稿");
   state.current.draft = state.current.original;
   state.current.modifiedAt = Date.now();
   state.needsBackup = false;
@@ -841,6 +878,56 @@ async function discardChanges() {
   updateDocumentStatus();
   renderLibrary();
   toast("已恢复为导入时的原文");
+}
+
+function addHistorySnapshot(document, content, label) {
+  if (typeof content !== "string") return;
+  const history = Array.isArray(document.history) ? document.history : [];
+  if (history[0]?.content === content) return;
+  history.unshift({ id: crypto.randomUUID?.() || String(Date.now()), content, label, createdAt: Date.now() });
+  document.history = history.slice(0, 10);
+}
+
+function showHistory(document) {
+  elements.historyList.replaceChildren();
+  const history = Array.isArray(document.history) ? document.history : [];
+  if (!history.length) {
+    const empty = window.document.createElement("div");
+    empty.className = "history-empty";
+    empty.textContent = "还没有历史版本。覆盖原文或恢复原文前会自动留档。";
+    elements.historyList.append(empty);
+  }
+  for (const version of history) {
+    const item = window.document.createElement("div");
+    item.className = "history-item";
+    const title = window.document.createElement("strong");
+    title.textContent = version.label || "历史版本";
+    const time = window.document.createElement("span");
+    time.textContent = new Date(version.createdAt).toLocaleString("zh-CN");
+    const restore = window.document.createElement("button");
+    restore.type = "button";
+    restore.textContent = "恢复为修改稿";
+    restore.addEventListener("click", async () => {
+      elements.historyDialog.close();
+      const fresh = await getDocument(document.id);
+      if (!fresh) return;
+      addHistorySnapshot(fresh, fresh.draft, "恢复历史版本前的修改稿");
+      fresh.draft = version.content;
+      fresh.modifiedAt = Date.now();
+      await putDocument(fresh);
+      if (state.current?.id === fresh.id) {
+        state.current = fresh;
+        state.needsBackup = false;
+        editor.setText(fresh.draft);
+        updateDocumentStatus();
+      }
+      await refreshLibrary();
+      toast("历史版本已恢复为修改稿");
+    });
+    item.append(title, time, restore);
+    elements.historyList.append(item);
+  }
+  elements.historyDialog.showModal();
 }
 
 async function renameCurrentDocument() {
@@ -862,7 +949,10 @@ async function renameCurrentDocument() {
 async function handleDocumentAction(document, action) {
   await backupDraft();
   document = await getDocument(document.id) || document;
-  if (action === "rename") {
+  if (action === "history") {
+    showHistory(document);
+    return;
+  } else if (action === "rename") {
     const name = await promptRename(document.name);
     if (!name) return;
     const oldName = document.name;
