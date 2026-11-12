@@ -12,7 +12,6 @@ import {
   putDocument,
   setSetting,
 } from "./db.js";
-import { createMarkdownEditor } from "./editor.js";
 import {
   chooseFolder,
   chooseMarkdownFiles,
@@ -84,6 +83,22 @@ const elements = {
   confirmMessage: $("#confirmMessage"),
   historyDialog: $("#historyDialog"),
   historyList: $("#historyList"),
+  storageDialog: $("#storageDialog"),
+  storageDocumentCount: $("#storageDocumentCount"),
+  storageContentSize: $("#storageContentSize"),
+  storageOriginUsage: $("#storageOriginUsage"),
+  storagePersistence: $("#storagePersistence"),
+  storageQuota: $("#storageQuota"),
+  storageLastBackup: $("#storageLastBackup"),
+  requestPersistenceButton: $("#requestPersistenceButton"),
+  storageBackupButton: $("#storageBackupButton"),
+  importReportDialog: $("#importReportDialog"),
+  importReportTitle: $("#importReportTitle"),
+  importReportCount: $("#importReportCount"),
+  importReportRoot: $("#importReportRoot"),
+  importReportChecked: $("#importReportChecked"),
+  importReportSkipped: $("#importReportSkipped"),
+  importReportNote: $("#importReportNote"),
   toast: $("#toast"),
   toastMessage: $("#toastMessage"),
   toastAction: $("#toastAction"),
@@ -108,11 +123,7 @@ const state = {
 };
 
 let syncScrollOwner = null;
-
-const editor = createMarkdownEditor(elements.editor, {
-  onChange: handleEditorUpdate,
-  onSave: saveCopy,
-});
+let editor;
 
 initialize().catch((error) => {
   console.error("Moyo failed to start", error);
@@ -120,10 +131,8 @@ initialize().catch((error) => {
 });
 
 async function initialize() {
-  // Bind controls before touching persistent storage. Some embedded WebKit
-  // browsers can take a moment to open IndexedDB on their first launch.
-  wireEvents();
-  const [theme, splitRatio, editorMode, sidebarCollapsed, collapsedFolders, lastFullBackupAt] = await Promise.all([
+  const editorModulePromise = import("./editor.js");
+  const settingsPromise = Promise.all([
     getSetting("theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"),
     getSetting("splitRatio", 0.46),
     getSetting("editorMode", "single"),
@@ -131,6 +140,15 @@ async function initialize() {
     getSetting("collapsedFolders", []),
     getSetting("lastFullBackupAt", 0),
   ]);
+  const { createMarkdownEditor } = await editorModulePromise;
+  editor = createMarkdownEditor(elements.editor, {
+    onChange: handleEditorUpdate,
+    onSave: saveCopy,
+  });
+  // Bind controls before touching persistent storage. Some embedded WebKit
+  // browsers can take a moment to open IndexedDB on their first launch.
+  wireEvents();
+  const [theme, splitRatio, editorMode, sidebarCollapsed, collapsedFolders, lastFullBackupAt] = await settingsPromise;
   applyTheme(theme);
   state.splitRatio = Number(splitRatio);
   state.mode = editorMode;
@@ -201,14 +219,13 @@ function wireEvents() {
   elements.zipButton.addEventListener("click", importZip);
   elements.welcomeFolderButton.addEventListener("click", importFolder);
   elements.welcomeFileButton.addEventListener("click", importFiles);
-  elements.backupAllButton.addEventListener("click", async () => {
-    if (!state.documents.length) return toast("当前没有可备份的文档");
-    downloadBackup(state.documents);
-    state.lastFullBackupAt = Date.now();
-    await setSetting("lastFullBackupAt", state.lastFullBackupAt);
-    updateBackupStatus();
-    toast("已生成全部文档 ZIP 备份");
+  elements.backupAllButton.addEventListener("click", createFullBackup);
+  elements.backupStatus.addEventListener("click", showStorageCenter);
+  elements.storageBackupButton.addEventListener("click", async () => {
+    await createFullBackup();
+    await showStorageCenter();
   });
+  elements.requestPersistenceButton.addEventListener("click", requestPersistentStorage);
 
   elements.sidebarButton.addEventListener("click", () => toggleSidebar(true));
   elements.sidebarRailButton.addEventListener("click", () => {
@@ -812,9 +829,11 @@ async function createNewDocument() {
 
 async function importFiles() {
   try {
-    const files = await chooseMarkdownFiles(elements.fileInput);
-    const imported = await importFileRecords(files, "file");
+    const result = await chooseMarkdownFiles(elements.fileInput);
+    if (!result.selectedCount) return;
+    const imported = await importFileRecords(result.files, "file");
     if (imported.count) setLibraryNotice(`已导入 ${imported.count} 篇，放在“未分类”中；列表可上下滑动`);
+    showImportReport({ title: "文件导入完成", imported: imported.count, checked: result.selectedCount, root: imported.root || "未分类" });
   } catch (error) {
     showError("导入文件失败", error);
   }
@@ -824,14 +843,22 @@ async function importFolder() {
   try {
     setLibraryNotice("正在读取文件夹…");
     const result = await chooseFolder(elements.folderInput);
+    if (result.mode === "cancelled") return setLibraryNotice("已取消导入文件夹");
     const imported = await importFileRecords(result.files, "folder", result.root);
     if (result.mode === "flat-input") {
       setLibraryNotice(imported.count
         ? `已导入 ${imported.count} 篇。Safari 未提供原文件夹名，已统一放入“${imported.root}”`
         : "没有找到 Markdown 文档", !imported.count);
-    } else if (result.mode !== "cancelled") {
+    } else {
       setLibraryNotice(`已导入文件夹“${imported.root || result.root || "Markdown"}”：${imported.count} 篇；列表可上下滑动`);
     }
+    showImportReport({
+      title: "文件夹导入完成",
+      imported: imported.count,
+      checked: result.selectedCount,
+      root: imported.root || result.root || "导入文件夹",
+      note: result.mode === "flat-input" ? "Safari 没有提供原文件夹名，Moyo 已建立独立分组。" : "文件夹层级已保留。",
+    });
   } catch (error) {
     setLibraryNotice("文件夹读取失败，请改用 ZIP 导入。", true);
     showError("导入文件夹失败", error);
@@ -842,15 +869,18 @@ async function importZip() {
   try {
     setLibraryNotice("正在解压 ZIP…");
     const result = await chooseZip(elements.zipInput);
+    if (!result.entryCount && !result.backup) return setLibraryNotice("已取消导入 ZIP");
     if (result.backup) {
       const restored = await restoreMoyoBackup(result.backup);
       setLibraryNotice(`已恢复 Moyo 备份：${restored.count} 篇放入“${restored.root}”`);
+      showImportReport({ title: "Moyo 备份恢复完成", imported: restored.count, checked: result.backup.documents.length, root: restored.root, note: "原有文档没有被覆盖。" });
       return;
     }
     const imported = await importFileRecords(result.files, "zip", result.root);
     setLibraryNotice(imported.count
       ? `已在本机解压 ZIP：${imported.count} 篇放入“${imported.root}”`
       : "ZIP 中没有 Markdown 文档", !imported.count);
+    showImportReport({ title: "ZIP 导入完成", imported: imported.count, checked: result.entryCount, root: imported.root || result.root || "ZIP 文件夹", note: "ZIP 只在本机解压，没有上传。" });
   } catch (error) {
     setLibraryNotice("ZIP 读取失败，请确认压缩包未损坏。", true);
     showError("导入 ZIP 失败", error);
@@ -1361,6 +1391,71 @@ function updateBackupStatus(documents = [...state.documents, ...state.trashedDoc
   elements.backupStatus.dataset.state = hasChanges ? "changed" : "safe";
   if (hasChanges) elements.backupStatus.textContent = state.lastFullBackupAt ? "备份后有变更" : "尚未完整备份";
   else elements.backupStatus.textContent = `已备份 ${new Date(state.lastFullBackupAt).toLocaleDateString("zh-CN")}`;
+}
+
+async function createFullBackup() {
+  if (!state.documents.length) return toast("当前没有可备份的文档");
+  downloadBackup(state.documents);
+  state.lastFullBackupAt = Date.now();
+  await setSetting("lastFullBackupAt", state.lastFullBackupAt);
+  updateBackupStatus();
+  toast("已生成全部文档 ZIP 备份");
+}
+
+async function showStorageCenter() {
+  const documents = [...state.documents, ...state.trashedDocuments];
+  const contentBytes = new Blob([JSON.stringify(documents)]).size;
+  elements.storageDocumentCount.textContent = String(documents.length);
+  elements.storageContentSize.textContent = formatBytes(contentBytes);
+  elements.storageLastBackup.textContent = state.lastFullBackupAt
+    ? new Date(state.lastFullBackupAt).toLocaleString("zh-CN")
+    : "尚未备份";
+
+  let persisted = false;
+  try {
+    const estimate = await navigator.storage?.estimate?.();
+    elements.storageOriginUsage.textContent = Number.isFinite(estimate?.usage) ? formatBytes(estimate.usage) : "未知";
+    elements.storageQuota.textContent = Number.isFinite(estimate?.quota) ? formatBytes(estimate.quota) : "由浏览器管理";
+    persisted = Boolean(await navigator.storage?.persisted?.());
+    elements.storagePersistence.textContent = persisted ? "已获得持久存储保护" : "由浏览器自动管理";
+  } catch (error) {
+    console.warn("Unable to inspect browser storage", error);
+    elements.storageOriginUsage.textContent = "未知";
+    elements.storageQuota.textContent = "由浏览器管理";
+    elements.storagePersistence.textContent = "无法读取浏览器状态";
+  }
+  elements.requestPersistenceButton.hidden = persisted || typeof navigator.storage?.persist !== "function";
+  if (!elements.storageDialog.open) elements.storageDialog.showModal();
+}
+
+async function requestPersistentStorage() {
+  try {
+    const granted = await navigator.storage?.persist?.();
+    toast(granted ? "浏览器已加强 Moyo 的本地存储保护" : "浏览器暂未授予持久存储，请保持定期备份");
+  } catch (error) {
+    showError("无法申请持久存储", error);
+  }
+  await showStorageCenter();
+}
+
+function showImportReport({ title, imported, checked, root, note = "" }) {
+  const skipped = Math.max(0, Number(checked || 0) - Number(imported || 0));
+  elements.importReportTitle.textContent = title;
+  elements.importReportCount.textContent = String(imported || 0);
+  elements.importReportRoot.textContent = root || "未建立分组";
+  elements.importReportChecked.textContent = `${checked || 0} 个`;
+  elements.importReportSkipped.textContent = skipped ? `${skipped} 个（非 Markdown 或无法读取）` : "0 个";
+  elements.importReportNote.textContent = note || "导入的是浏览器本地副本，不会修改来源文件。";
+  elements.importReportDialog.showModal();
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value <= 0) return "0 KB";
+  const units = ["B", "KB", "MB", "GB"];
+  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  const amount = value / (1024 ** index);
+  return `${amount >= 10 || index === 0 ? amount.toFixed(0) : amount.toFixed(1)} ${units[index]}`;
 }
 
 function applySidebarCollapsed(collapsed) {

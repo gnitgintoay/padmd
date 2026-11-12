@@ -16,10 +16,11 @@ export async function chooseFolder(folderInput) {
   if ("showDirectoryPicker" in window) {
     try {
       const handle = await window.showDirectoryPicker({ mode: "read" });
-      return { files: await walkDirectoryHandle(handle), mode: "directory-handle", root: handle.name };
+      const files = await walkDirectoryHandle(handle);
+      return { files, selectedCount: files.length, mode: "directory-handle", root: handle.name };
     } catch (error) {
       if (error?.name !== "AbortError") console.warn(error);
-      return { files: [], mode: "cancelled", root: "" };
+      return { files: [], selectedCount: 0, mode: "cancelled", root: "" };
     }
   }
 
@@ -35,6 +36,7 @@ export async function chooseFolder(folderInput) {
   );
   return {
     files,
+    selectedCount: selected.length,
     mode: hasRelativePaths ? "directory-input" : "flat-input",
     root: hasRelativePaths ? files[0]?.path.split("/")[0] || "" : "",
   };
@@ -42,18 +44,19 @@ export async function chooseFolder(folderInput) {
 
 export async function chooseMarkdownFiles(fileInput) {
   const selected = await chooseInputFiles(fileInput);
-  return Promise.all(
+  const files = await Promise.all(
     selected.filter((file) => isMarkdown(file.name)).map(async (file) => ({
       name: file.name,
       path: file.name,
       content: await file.text(),
     })),
   );
+  return { files, selectedCount: selected.length };
 }
 
 export async function chooseZip(zipInput) {
   const [file] = await chooseInputFiles(zipInput);
-  if (!file) return { files: [], root: "", backup: null };
+  if (!file) return { files: [], root: "", backup: null, entryCount: 0 };
   const packageData = readZipPackage(new Uint8Array(await file.arrayBuffer()));
   return {
     ...packageData,
@@ -128,7 +131,8 @@ export function readZipPackage(bytes) {
       console.warn("Ignoring damaged Moyo backup manifest", error);
     }
   }
-  return { files: extractMarkdownFromArchive(archive), backup };
+  const entryCount = Object.keys(archive).filter((path) => !path.endsWith("/") && !path.startsWith(".moyo/")).length;
+  return { files: extractMarkdownFromArchive(archive), backup, entryCount };
 }
 
 export function downloadMarkdown(document, content) {

@@ -12,8 +12,8 @@
     <link rel="apple-touch-icon" href="/padmd/icon-180.png?v=3" sizes="180x180" type="image/png" />
     <link rel="apple-touch-icon-precomposed" href="/padmd/icon-180.png?v=3" sizes="180x180" />
     <title>Moyo · 墨页</title>
-    <script type="module" crossorigin src="/padmd/assets/index-D_LQW17h.js"></script>
-    <link rel="stylesheet" crossorigin href="/padmd/assets/index-CQ7gcKdb.css">
+    <script type="module" crossorigin src="/padmd/assets/index-BP2IHr3v.js"></script>
+    <link rel="stylesheet" crossorigin href="/padmd/assets/index-rJljo_GB.css">
   <link rel="manifest" href="/padmd/manifest.webmanifest"></head>
   <body>
     <div id="app" class="app">
@@ -58,7 +58,7 @@
         <footer class="sidebar-footer">
           <div class="sidebar-footer-meta">
             <span><strong id="libraryCount">0</strong> 篇 · 仅存此浏览器</span>
-            <span id="backupStatus" class="backup-status" data-state="changed">尚未完整备份</span>
+            <button id="backupStatus" class="backup-status" data-state="changed" type="button" title="查看存储安全状态">尚未完整备份</button>
           </div>
           <button id="backupAllButton" type="button">备份全部</button>
         </footer>
@@ -169,6 +169,43 @@
         <p>自动保留最近 10 个关键版本。恢复后会作为修改稿打开，不会覆盖当前原文。</p>
         <div id="historyList" class="history-list"></div>
         <div class="dialog-actions"><button value="cancel">关闭</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="storageDialog" class="storage-dialog">
+      <form method="dialog">
+        <h2>存储与备份</h2>
+        <p>你的文档只保存在当前浏览器中。清除 Safari 或浏览器的网站数据，可能同时删除 Moyo 内部副本。</p>
+        <div class="storage-metrics">
+          <div><strong id="storageDocumentCount">0</strong><span>篇文档</span></div>
+          <div><strong id="storageContentSize">0 KB</strong><span>Moyo 内容</span></div>
+          <div><strong id="storageOriginUsage">未知</strong><span>浏览器占用</span></div>
+        </div>
+        <div class="storage-details">
+          <p><span>存储保护</span><strong id="storagePersistence">正在检查…</strong></p>
+          <p><span>可用配额</span><strong id="storageQuota">未知</strong></p>
+          <p><span>最近完整备份</span><strong id="storageLastBackup">尚未备份</strong></p>
+        </div>
+        <div class="storage-warning">建议定期点击“备份全部”，把 ZIP 保存到“文件”App 或云盘。</div>
+        <div class="dialog-actions storage-dialog-actions">
+          <button id="requestPersistenceButton" type="button">加强本地保存</button>
+          <button id="storageBackupButton" class="primary" type="button">立即备份</button>
+          <button value="cancel">关闭</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="importReportDialog" class="import-report-dialog">
+      <form method="dialog">
+        <h2 id="importReportTitle">导入完成</h2>
+        <div class="import-report-summary"><strong id="importReportCount">0</strong><span>篇 Markdown 已加入 Moyo</span></div>
+        <dl class="import-report-details">
+          <div><dt>存放位置</dt><dd id="importReportRoot">—</dd></div>
+          <div><dt>检查项目</dt><dd id="importReportChecked">0 个</dd></div>
+          <div><dt>未导入</dt><dd id="importReportSkipped">0 个</dd></div>
+        </dl>
+        <p id="importReportNote" class="import-report-note"></p>
+        <div class="dialog-actions"><button class="primary" value="cancel">知道了</button></div>
       </form>
     </dialog>
 
