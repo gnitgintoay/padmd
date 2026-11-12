@@ -157,6 +157,7 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .doc-file-icon { position: relative; flex: 0 0 auto; width: 13px; height: 16px; border: 1.5px solid var(--muted); border-radius: 2px; opacity: 0.78; }
 .doc-file-icon::after { content: ""; position: absolute; left: 2px; right: 2px; top: 6px; height: 1px; background: var(--muted); box-shadow: 0 3px var(--muted); opacity: 0.7; }
 .doc-path { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.document-tree:not(.is-searching) .doc-path { display: none; }
 .doc-dirty { flex: 0 0 auto; color: var(--accent); font-size: 8px; }
 .doc-menu { position: relative; }
 .doc-menu > summary { list-style: none; width: 32px; height: 32px; padding: 5px 8px; border-radius: 8px; font-size: 17px; text-align: center; }
@@ -176,6 +177,10 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .danger-text { color: var(--danger); }
 
 .sidebar-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.sidebar-footer-meta { min-width: 0; display: grid; gap: 3px; }
+.backup-status { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.backup-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #d3914d; }
+.backup-status[data-state="safe"]::before { background: #67aa7a; }
 .sidebar-footer button { padding: 6px 8px; font-size: 12px; }
 
 .main { min-width: 0; min-height: 0; position: relative; }
@@ -203,6 +208,8 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .save-status[data-state="backed-up"]::before, .save-status[data-state="exported"]::before { background: #67aa7a; }
 @keyframes status-pulse { 50% { opacity: 0.3; transform: scale(0.75); } }
 .header-actions { display: flex; gap: 8px; }
+.header-actions #discardButton { border-color: transparent; background: transparent; color: var(--muted); }
+.header-actions #overwriteOriginalButton { background: var(--panel-2); }
 .mobile-only { display: none; }
 
 .view-row { display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 7px 14px; background: var(--panel); }
@@ -210,6 +217,14 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .mode-switch button { border: 0; border-radius: 0; background: transparent; padding: 7px 12px; }
 .mode-switch button.is-active { border-radius: 9px; background: color-mix(in srgb, var(--accent) 20%, var(--panel)); color: var(--text); box-shadow: 0 2px 8px rgb(61 35 26 / 0.1); }
 .folder-path { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focus-mode-button { margin-left: auto; border: 0; background: transparent; color: var(--muted); font-size: 12px; }
+.exit-focus-button { position: absolute; z-index: 40; right: 14px; top: max(12px, env(safe-area-inset-top)); opacity: 0.22; background: var(--panel); }
+.exit-focus-button:hover, .exit-focus-button:focus-visible { opacity: 1; }
+.app.focus-mode { grid-template-columns: minmax(0, 1fr); }
+.app.focus-mode .sidebar, .app.focus-mode .document-header, .app.focus-mode .view-row, .app.focus-mode .format-toolbar, .app.focus-mode .status-bar, .app.focus-mode .sidebar-rail-button { display: none !important; }
+.app.focus-mode .exit-focus-button { display: block !important; }
+.app.focus-mode .editor-screen { grid-template-rows: minmax(0, 1fr); }
+.app.focus-mode .workspace { height: 100%; }
 
 .workspace { min-height: 0; display: grid; grid-template-columns: var(--split-ratio) 10px minmax(0, 1fr); }
 .workspace.is-single { grid-template-columns: minmax(0, 1fr); }

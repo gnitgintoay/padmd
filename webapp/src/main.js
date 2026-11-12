@@ -31,6 +31,7 @@ const elements = {
   sidebarButton: $("#sidebarButton"),
   sidebarCollapseButton: $("#sidebarCollapseButton"),
   sidebarRailButton: $("#sidebarRailButton"),
+  exitFocusButton: $("#exitFocusButton"),
   themeButton: $("#themeButton"),
   themeColorMeta: $("#themeColorMeta"),
   librarySearch: $("#librarySearch"),
@@ -47,6 +48,7 @@ const elements = {
   folderButton: $("#folderButton"),
   zipButton: $("#zipButton"),
   backupAllButton: $("#backupAllButton"),
+  backupStatus: $("#backupStatus"),
   welcome: $("#welcome"),
   welcomeFolderButton: $("#welcomeFolderButton"),
   welcomeFileButton: $("#welcomeFileButton"),
@@ -58,6 +60,7 @@ const elements = {
   saveCopyButton: $("#saveCopyButton"),
   singleModeButton: $("#singleModeButton"),
   compareModeButton: $("#compareModeButton"),
+  focusModeButton: $("#focusModeButton"),
   folderPath: $("#folderPath"),
   workspace: $("#workspace"),
   originalContent: $("#originalContent"),
@@ -94,6 +97,8 @@ const state = {
   mode: "single",
   splitRatio: 0.46,
   sidebarCollapsed: false,
+  focusMode: false,
+  lastFullBackupAt: 0,
   collapsedFolders: new Set(),
   selectionMode: false,
   selectedDocumentIds: new Set(),
@@ -116,18 +121,20 @@ async function initialize() {
   // Bind controls before touching persistent storage. Some embedded WebKit
   // browsers can take a moment to open IndexedDB on their first launch.
   wireEvents();
-  const [theme, splitRatio, editorMode, sidebarCollapsed, collapsedFolders] = await Promise.all([
+  const [theme, splitRatio, editorMode, sidebarCollapsed, collapsedFolders, lastFullBackupAt] = await Promise.all([
     getSetting("theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"),
     getSetting("splitRatio", 0.46),
     getSetting("editorMode", "single"),
     getSetting("sidebarCollapsed", false),
     getSetting("collapsedFolders", []),
+    getSetting("lastFullBackupAt", 0),
   ]);
   applyTheme(theme);
   state.splitRatio = Number(splitRatio);
   state.mode = editorMode;
   state.sidebarCollapsed = Boolean(sidebarCollapsed);
   state.collapsedFolders = new Set(Array.isArray(collapsedFolders) ? collapsedFolders : []);
+  state.lastFullBackupAt = Number(lastFullBackupAt) || 0;
   applySplitRatio(state.splitRatio);
   applyMode(state.mode);
   applySidebarCollapsed(state.sidebarCollapsed);
@@ -192,9 +199,12 @@ function wireEvents() {
   elements.zipButton.addEventListener("click", importZip);
   elements.welcomeFolderButton.addEventListener("click", importFolder);
   elements.welcomeFileButton.addEventListener("click", importFiles);
-  elements.backupAllButton.addEventListener("click", () => {
+  elements.backupAllButton.addEventListener("click", async () => {
     if (!state.documents.length) return toast("当前没有可备份的文档");
     downloadBackup(state.documents);
+    state.lastFullBackupAt = Date.now();
+    await setSetting("lastFullBackupAt", state.lastFullBackupAt);
+    updateBackupStatus();
     toast("已生成全部文档 ZIP 备份");
   });
 
@@ -214,6 +224,8 @@ function wireEvents() {
   elements.saveCopyButton.addEventListener("click", saveCopy);
   elements.singleModeButton.addEventListener("click", () => setMode("single"));
   elements.compareModeButton.addEventListener("click", () => setMode("compare"));
+  elements.focusModeButton.addEventListener("click", () => setFocusMode(true));
+  elements.exitFocusButton.addEventListener("click", () => setFocusMode(false));
   elements.findButton.addEventListener("click", editor.find);
   elements.undoButton.addEventListener("click", editor.undo);
   elements.redoButton.addEventListener("click", editor.redo);
@@ -237,6 +249,11 @@ function wireEvents() {
   });
   window.addEventListener("pagehide", backupDraft);
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.focusMode) {
+      event.preventDefault();
+      setFocusMode(false);
+      return;
+    }
     const modifier = event.metaKey || event.ctrlKey;
     if (!modifier) return;
     if (event.key.toLowerCase() === "n") {
@@ -261,6 +278,7 @@ async function refreshLibrary() {
   );
   if (!state.documents.length) state.selectionMode = false;
   elements.libraryCount.textContent = String(state.documents.length);
+  updateBackupStatus(allDocuments);
   renderLibrary();
   elements.backupAllButton.disabled = state.documents.length === 0;
 }
@@ -268,6 +286,7 @@ async function refreshLibrary() {
 function renderLibrary() {
   const query = elements.librarySearch.value.trim().toLowerCase();
   const visible = getVisibleDocuments();
+  elements.documentTree.classList.toggle("is-searching", Boolean(query));
   updateSelectionControls(visible);
   elements.documentTree.replaceChildren();
 
@@ -1239,6 +1258,21 @@ async function setSidebarCollapsed(collapsed) {
   state.sidebarCollapsed = collapsed;
   applySidebarCollapsed(collapsed);
   await setSetting("sidebarCollapsed", collapsed);
+}
+
+function setFocusMode(enabled) {
+  state.focusMode = Boolean(enabled);
+  elements.app.classList.toggle("focus-mode", state.focusMode);
+  elements.exitFocusButton.hidden = !state.focusMode;
+  if (state.focusMode) requestAnimationFrame(editor.focus);
+}
+
+function updateBackupStatus(documents = [...state.documents, ...state.trashedDocuments]) {
+  const hasChanges = !state.lastFullBackupAt
+    || documents.some((document) => Number(document.modifiedAt) > state.lastFullBackupAt);
+  elements.backupStatus.dataset.state = hasChanges ? "changed" : "safe";
+  if (hasChanges) elements.backupStatus.textContent = state.lastFullBackupAt ? "备份后有变更" : "尚未完整备份";
+  else elements.backupStatus.textContent = `已备份 ${new Date(state.lastFullBackupAt).toLocaleDateString("zh-CN")}`;
 }
 
 function applySidebarCollapsed(collapsed) {

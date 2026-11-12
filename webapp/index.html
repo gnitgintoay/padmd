@@ -54,7 +54,10 @@
         </div>
         <nav id="documentTree" class="document-tree" aria-label="Markdown 文档" tabindex="0"></nav>
         <footer class="sidebar-footer">
-          <span><strong id="libraryCount">0</strong> 篇 · 仅存此浏览器</span>
+          <div class="sidebar-footer-meta">
+            <span><strong id="libraryCount">0</strong> 篇 · 仅存此浏览器</span>
+            <span id="backupStatus" class="backup-status" data-state="changed">尚未完整备份</span>
+          </div>
           <button id="backupAllButton" type="button">备份全部</button>
         </footer>
       </aside>
@@ -63,6 +66,7 @@
 
       <main class="main">
         <button id="sidebarRailButton" class="sidebar-rail-button icon-button" type="button" aria-label="展开工作台" title="展开工作台"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
+        <button id="exitFocusButton" class="exit-focus-button" type="button" hidden>退出专注</button>
         <section id="welcome" class="welcome">
           <div class="welcome-card">
             <img src="icon.svg" alt="" width="72" height="72" />
@@ -96,6 +100,7 @@
               <button id="compareModeButton" type="button">原文对照</button>
             </div>
             <span id="folderPath" class="folder-path"></span>
+            <button id="focusModeButton" class="focus-mode-button" type="button">专注</button>
           </div>
 
           <div id="workspace" class="workspace is-single">
