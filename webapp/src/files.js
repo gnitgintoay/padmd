@@ -100,6 +100,63 @@ export function groupImportedFiles(files, { preferredRoot = "", fallbackRoot = "
   };
 }
 
+export function analyzeImportConflicts(files, existingDocuments, { source = "folder", preferredRoot = "" } = {}) {
+  const incomingRoot = source === "file" ? "未分类" : detectIncomingRoot(files, preferredRoot);
+  const incomingFamily = rootFamily(incomingRoot);
+  const existingByPath = new Map();
+
+  for (const document of existingDocuments || []) {
+    if (!document || document.trashed) continue;
+    const documentRoot = source === "file"
+      ? ((document.path || "").split("/")[0] || "未分类")
+      : (document.importRoot || (document.path || "").split("/")[0]);
+    if (rootFamily(documentRoot) !== incomingFamily) continue;
+    const key = relativeImportPath(document.path || document.name, documentRoot).toLocaleLowerCase();
+    if (!existingByPath.has(key)) existingByPath.set(key, document);
+  }
+
+  const items = (files || []).map((file) => {
+    const relativePath = source === "file"
+      ? file.name
+      : relativeImportPath(file.path || file.name, incomingRoot);
+    const existing = existingByPath.get(relativePath.toLocaleLowerCase()) || null;
+    const status = !existing
+      ? "new"
+      : file.content === existing.original
+        ? "same"
+        : "changed";
+    return { file, relativePath, existing, status };
+  });
+
+  return {
+    incomingRoot,
+    items,
+    newCount: items.filter((item) => item.status === "new").length,
+    sameCount: items.filter((item) => item.status === "same").length,
+    changedCount: items.filter((item) => item.status === "changed").length,
+  };
+}
+
+function detectIncomingRoot(files, preferredRoot) {
+  const paths = (files || []).map((file) => normalizePath(file.path || file.name).replace(/^\/+|\/+$/g, ""));
+  const topLevels = new Set(paths.filter((path) => path.includes("/")).map((path) => path.split("/")[0]));
+  const sharedRoot = paths.length && paths.every((path) => path.includes("/")) && topLevels.size === 1
+    ? [...topLevels][0]
+    : "";
+  return normalizeFolderName(sharedRoot || preferredRoot || "导入文件夹") || "导入文件夹";
+}
+
+function relativeImportPath(path, root) {
+  const normalized = normalizePath(String(path || "")).replace(/^\/+|\/+$/g, "");
+  const normalizedRoot = normalizePath(String(root || "")).replace(/^\/+|\/+$/g, "");
+  if (normalizedRoot && normalized.startsWith(`${normalizedRoot}/`)) return normalized.slice(normalizedRoot.length + 1);
+  return normalized.includes("/") ? normalized.split("/").slice(1).join("/") : normalized;
+}
+
+function rootFamily(root) {
+  return normalizeFolderName(root).replace(/ \d+$/u, "").toLocaleLowerCase();
+}
+
 export function extractMarkdownFromZip(bytes) {
   const archive = unzipSync(bytes);
   return extractMarkdownFromArchive(archive);

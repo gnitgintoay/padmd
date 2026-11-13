@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { strToU8, zipSync } from "fflate";
 
-import { createBackupArchive, extractMarkdownFromZip, groupImportedFiles, isMarkdown, readZipPackage } from "./files.js";
+import {
+  analyzeImportConflicts,
+  createBackupArchive,
+  extractMarkdownFromZip,
+  groupImportedFiles,
+  isMarkdown,
+  readZipPackage,
+} from "./files.js";
 
 describe("isMarkdown", () => {
   it("accepts common Markdown extensions case-insensitively", () => {
@@ -88,6 +95,48 @@ describe("groupImportedFiles", () => {
 
     expect(result.root).toBe("项目资料");
     expect(result.files[0].path).toBe("项目资料/说明.md");
+  });
+});
+
+describe("analyzeImportConflicts", () => {
+  const existing = [
+    {
+      id: "a",
+      name: "第一章.md",
+      path: "课程笔记/章节/第一章.md",
+      importRoot: "课程笔记",
+      original: "# 第一章",
+      draft: "# 第一章\n\n本地批注",
+    },
+    {
+      id: "b",
+      name: "第二章.md",
+      path: "课程笔记/第二章.md",
+      importRoot: "课程笔记",
+      original: "旧内容",
+      draft: "旧内容",
+    },
+  ];
+
+  it("distinguishes identical, changed, and new files in a repeated folder import", () => {
+    const result = analyzeImportConflicts([
+      { name: "第一章.md", path: "课程笔记/章节/第一章.md", content: "# 第一章" },
+      { name: "第二章.md", path: "课程笔记/第二章.md", content: "新内容" },
+      { name: "第三章.md", path: "课程笔记/第三章.md", content: "第三章" },
+    ], existing, { source: "folder", preferredRoot: "课程笔记" });
+
+    expect(result).toMatchObject({ sameCount: 1, changedCount: 1, newCount: 1 });
+    expect(result.items.map((item) => item.status)).toEqual(["same", "changed", "new"]);
+  });
+
+  it("recognizes numbered copies as the same import family", () => {
+    const result = analyzeImportConflicts([
+      { name: "第二章.md", path: "课程笔记/第二章.md", content: "旧内容" },
+    ], [{ ...existing[1], path: "课程笔记 2/第二章.md", importRoot: "课程笔记 2" }], {
+      source: "folder",
+      preferredRoot: "课程笔记",
+    });
+    expect(result.sameCount).toBe(1);
   });
 });
 

@@ -12,8 +12,8 @@
     <link rel="apple-touch-icon" href="/padmd/icon-180.png?v=3" sizes="180x180" type="image/png" />
     <link rel="apple-touch-icon-precomposed" href="/padmd/icon-180.png?v=3" sizes="180x180" />
     <title>Moyo · 墨页</title>
-    <script type="module" crossorigin src="/padmd/assets/index-JFZr50e_.js"></script>
-    <link rel="stylesheet" crossorigin href="/padmd/assets/index-B8uugWCT.css">
+    <script type="module" crossorigin src="/padmd/assets/index-BeKw8yqb.js"></script>
+    <link rel="stylesheet" crossorigin href="/padmd/assets/index-BQOhp-t0.css">
   <link rel="manifest" href="/padmd/manifest.webmanifest"></head>
   <body>
     <div id="app" class="app">
@@ -178,6 +178,47 @@
       </form>
     </dialog>
 
+    <dialog id="duplicateImportDialog" class="duplicate-import-dialog">
+      <form method="dialog">
+        <h2>发现重复文档</h2>
+        <p id="duplicateImportSummary">即将导入的文件中，有文档已存在于 Moyo。</p>
+        <div class="duplicate-counts" aria-label="重复文档统计">
+          <div><strong id="duplicateSameCount">0</strong><span>完全相同</span></div>
+          <div><strong id="duplicateChangedCount">0</strong><span>内容变化</span></div>
+          <div><strong id="duplicateNewCount">0</strong><span>全新文档</span></div>
+        </div>
+        <fieldset class="duplicate-options">
+          <legend>这次如何处理</legend>
+          <label><input type="radio" name="duplicateStrategy" value="smart" checked /><span><strong>智能处理（推荐）</strong><small>跳过完全相同的文档；变化的文档和新文档保留为新副本。</small></span></label>
+          <label><input type="radio" name="duplicateStrategy" value="skip" /><span><strong>跳过所有重复文档</strong><small>同路径文档都不导入，只加入全新文档。</small></span></label>
+          <label><input type="radio" name="duplicateStrategy" value="replace" /><span><strong>更新 Moyo 内部原文</strong><small>变化的文件更新已有原文；已有本地修改稿会保留。</small></span></label>
+          <label><input type="radio" name="duplicateStrategy" value="keep" /><span><strong>全部保留为副本</strong><small>维持原有行为，建立新的独立文件夹。</small></span></label>
+        </fieldset>
+        <p class="dialog-hint">以上操作都不会修改设备“文件”App 中的来源文件。</p>
+        <div class="dialog-actions"><button value="cancel">取消导入</button><button class="primary" value="confirm">继续导入</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="backupPreviewDialog" class="backup-preview-dialog">
+      <form method="dialog">
+        <h2>恢复 Moyo 备份</h2>
+        <p id="backupPreviewSummary">请先检查备份内容，再选择需要恢复的文档。</p>
+        <div class="backup-preview-meta">
+          <span>备份时间<strong id="backupPreviewDate">未知</strong></span>
+          <span>文档数量<strong id="backupPreviewCount">0</strong></span>
+          <span>同名文档<strong id="backupPreviewConflictCount">0</strong></span>
+        </div>
+        <div class="backup-preview-controls">
+          <button id="backupSelectAllButton" type="button">全部选择</button>
+          <button id="backupSelectNoneButton" type="button">全部取消</button>
+          <span id="backupSelectedCount">已选择 0 篇</span>
+        </div>
+        <div id="backupPreviewList" class="backup-preview-list"></div>
+        <p class="dialog-hint">恢复内容会进入新的“Moyo 恢复”文件夹，不会覆盖现有文档。</p>
+        <div class="dialog-actions"><button value="cancel">取消</button><button id="backupRestoreButton" class="primary" value="confirm">恢复所选</button></div>
+      </form>
+    </dialog>
+
     <dialog id="historyDialog" class="history-dialog">
       <form method="dialog">
         <h2>历史版本</h2>
@@ -231,7 +272,7 @@
     <dialog id="importReportDialog" class="import-report-dialog">
       <form method="dialog">
         <h2 id="importReportTitle">导入完成</h2>
-        <div class="import-report-summary"><strong id="importReportCount">0</strong><span>篇 Markdown 已加入 Moyo</span></div>
+        <div class="import-report-summary"><strong id="importReportCount">0</strong><span>篇 Markdown 已处理</span></div>
         <dl class="import-report-details">
           <div><dt>存放位置</dt><dd id="importReportRoot">—</dd></div>
           <div><dt>检查项目</dt><dd id="importReportChecked">0 个</dd></div>

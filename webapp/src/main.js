@@ -13,6 +13,7 @@ import {
   setSetting,
 } from "./db.js";
 import {
+  analyzeImportConflicts,
   chooseFolder,
   chooseMarkdownFiles,
   chooseZip,
@@ -88,6 +89,21 @@ const elements = {
   confirmDialog: $("#confirmDialog"),
   confirmTitle: $("#confirmTitle"),
   confirmMessage: $("#confirmMessage"),
+  duplicateImportDialog: $("#duplicateImportDialog"),
+  duplicateImportSummary: $("#duplicateImportSummary"),
+  duplicateSameCount: $("#duplicateSameCount"),
+  duplicateChangedCount: $("#duplicateChangedCount"),
+  duplicateNewCount: $("#duplicateNewCount"),
+  backupPreviewDialog: $("#backupPreviewDialog"),
+  backupPreviewSummary: $("#backupPreviewSummary"),
+  backupPreviewDate: $("#backupPreviewDate"),
+  backupPreviewCount: $("#backupPreviewCount"),
+  backupPreviewConflictCount: $("#backupPreviewConflictCount"),
+  backupSelectAllButton: $("#backupSelectAllButton"),
+  backupSelectNoneButton: $("#backupSelectNoneButton"),
+  backupSelectedCount: $("#backupSelectedCount"),
+  backupPreviewList: $("#backupPreviewList"),
+  backupRestoreButton: $("#backupRestoreButton"),
   historyDialog: $("#historyDialog"),
   historyList: $("#historyList"),
   storageDialog: $("#storageDialog"),
@@ -981,8 +997,9 @@ async function importFiles() {
     const result = await chooseMarkdownFiles(elements.fileInput);
     if (!result.selectedCount) return;
     const imported = await importFileRecords(result.files, "file");
-    if (imported.count) setLibraryNotice(`已导入 ${imported.count} 篇，放在“未分类”中；列表可上下滑动`);
-    showImportReport({ title: "文件导入完成", imported: imported.count, checked: result.selectedCount, root: imported.root || "未分类" });
+    if (imported.cancelled) return setLibraryNotice("已取消导入文件");
+    if (imported.count || imported.updated) setLibraryNotice(`已处理 ${imported.count + imported.updated} 篇，放在“未分类”中；列表可上下滑动`);
+    showImportReport({ title: "文件导入完成", imported: imported.count + imported.updated, checked: result.selectedCount, root: imported.root || "未分类", note: importResultNote(imported) });
   } catch (error) {
     showError("导入文件失败", error);
   }
@@ -994,19 +1011,20 @@ async function importFolder() {
     const result = await chooseFolder(elements.folderInput);
     if (result.mode === "cancelled") return setLibraryNotice("已取消导入文件夹");
     const imported = await importFileRecords(result.files, "folder", result.root);
+    if (imported.cancelled) return setLibraryNotice("已取消导入文件夹");
     if (result.mode === "flat-input") {
-      setLibraryNotice(imported.count
-        ? `已导入 ${imported.count} 篇。Safari 未提供原文件夹名，已统一放入“${imported.root}”`
-        : "没有找到 Markdown 文档", !imported.count);
+      setLibraryNotice(imported.count || imported.updated
+        ? `已处理 ${imported.count + imported.updated} 篇。Safari 未提供原文件夹名，已统一放入“${imported.root}”`
+        : imported.skipped ? `已跳过 ${imported.skipped} 篇重复文档` : "没有找到 Markdown 文档", !imported.count && !imported.updated && !imported.skipped);
     } else {
-      setLibraryNotice(`已导入文件夹“${imported.root || result.root || "Markdown"}”：${imported.count} 篇；列表可上下滑动`);
+      setLibraryNotice(`已处理文件夹“${imported.root || result.root || "Markdown"}”：${imported.count + imported.updated} 篇，跳过 ${imported.skipped || 0} 篇`);
     }
     showImportReport({
       title: "文件夹导入完成",
-      imported: imported.count,
+      imported: imported.count + imported.updated,
       checked: result.selectedCount,
       root: imported.root || result.root || "导入文件夹",
-      note: result.mode === "flat-input" ? "Safari 没有提供原文件夹名，Moyo 已建立独立分组。" : "文件夹层级已保留。",
+      note: importResultNote(imported, result.mode === "flat-input" ? "Safari 没有提供原文件夹名，Moyo 已建立独立分组。" : "文件夹层级已保留。"),
     });
   } catch (error) {
     setLibraryNotice("文件夹读取失败，请改用 ZIP 导入。", true);
@@ -1020,16 +1038,20 @@ async function importZip() {
     const result = await chooseZip(elements.zipInput);
     if (!result.entryCount && !result.backup) return setLibraryNotice("已取消导入 ZIP");
     if (result.backup) {
-      const restored = await restoreMoyoBackup(result.backup);
+      const selectedDocuments = await previewBackupRestore(result.backup);
+      if (!selectedDocuments) return setLibraryNotice("已取消恢复 Moyo 备份");
+      if (!selectedDocuments.length) return setLibraryNotice("没有选择需要恢复的文档", true);
+      const restored = await restoreMoyoBackup({ ...result.backup, documents: selectedDocuments });
       setLibraryNotice(`已恢复 Moyo 备份：${restored.count} 篇放入“${restored.root}”`);
-      showImportReport({ title: "Moyo 备份恢复完成", imported: restored.count, checked: result.backup.documents.length, root: restored.root, note: "原有文档没有被覆盖。" });
+      showImportReport({ title: "Moyo 备份恢复完成", imported: restored.count, checked: selectedDocuments.length, root: restored.root, note: "只恢复了所选文档，原有文档没有被覆盖。" });
       return;
     }
     const imported = await importFileRecords(result.files, "zip", result.root);
-    setLibraryNotice(imported.count
-      ? `已在本机解压 ZIP：${imported.count} 篇放入“${imported.root}”`
-      : "ZIP 中没有 Markdown 文档", !imported.count);
-    showImportReport({ title: "ZIP 导入完成", imported: imported.count, checked: result.entryCount, root: imported.root || result.root || "ZIP 文件夹", note: "ZIP 只在本机解压，没有上传。" });
+    if (imported.cancelled) return setLibraryNotice("已取消导入 ZIP");
+    setLibraryNotice(imported.count || imported.updated
+      ? `已在本机解压 ZIP：处理 ${imported.count + imported.updated} 篇，跳过 ${imported.skipped || 0} 篇`
+      : imported.skipped ? `ZIP 中的 ${imported.skipped} 篇重复文档已跳过` : "ZIP 中没有 Markdown 文档", !imported.count && !imported.updated && !imported.skipped);
+    showImportReport({ title: "ZIP 导入完成", imported: imported.count + imported.updated, checked: result.entryCount, root: imported.root || result.root || "ZIP 文件夹", note: importResultNote(imported, "ZIP 只在本机解压，没有上传。") });
   } catch (error) {
     setLibraryNotice("ZIP 读取失败，请确认压缩包未损坏。", true);
     showError("导入 ZIP 失败", error);
@@ -1067,14 +1089,44 @@ async function restoreMoyoBackup(backup) {
 }
 
 async function importFileRecords(files, source, preferredRoot = "") {
-  if (!files?.length) return { count: 0, root: "" };
+  if (!files?.length) return { count: 0, root: "", skipped: 0, updated: 0 };
   await backupDraft();
+  const analysis = analyzeImportConflicts(files, state.documents, { source, preferredRoot });
+  let strategy = "keep";
+  if (analysis.sameCount || analysis.changedCount) {
+    strategy = await chooseDuplicateStrategy(analysis);
+    if (!strategy) return { count: 0, root: "", skipped: files.length, updated: 0, cancelled: true };
+  }
+
+  const filesToImport = [];
+  let skipped = 0;
+  let updated = 0;
+  for (const item of analysis.items) {
+    if (item.status === "new" || strategy === "keep" || (strategy === "smart" && item.status === "changed")) {
+      filesToImport.push(item.file);
+      continue;
+    }
+    if (strategy === "replace" && item.status === "changed" && item.existing) {
+      const existing = item.existing;
+      const hadLocalChanges = existing.draft !== existing.original;
+      addHistorySnapshot(existing, existing.original, "重新导入前的原文");
+      existing.original = item.file.content;
+      if (!hadLocalChanges) existing.draft = item.file.content;
+      existing.modifiedAt = Date.now();
+      await putDocument(existing);
+      announceDocumentUpdate(existing);
+      updated += 1;
+      continue;
+    }
+    skipped += 1;
+  }
+
   const existingRoots = state.documents
     .map((document) => (document.path || "").split("/")[0])
     .filter(Boolean);
   const organized = source === "file"
-    ? { root: "未分类", files: files.map((file) => ({ ...file, path: `未分类/${file.name}` })) }
-    : groupImportedFiles(files, {
+    ? { root: "未分类", files: filesToImport.map((file) => ({ ...file, path: `未分类/${file.name}` })) }
+    : groupImportedFiles(filesToImport, {
         preferredRoot,
         fallbackRoot: source === "zip" ? "ZIP 文件夹" : "导入文件夹",
         existingRoots,
@@ -1091,9 +1143,95 @@ async function importFileRecords(files, source, preferredRoot = "") {
     imported.push(document);
   }
   await refreshLibrary();
-  await openDocument(imported[0].id);
-  toast(`已复制 ${imported.length} 个 Markdown 文档，不会修改原文件`);
-  return { count: imported.length, root: organized.root };
+  const documentToOpen = imported[0] || (updated ? analysis.items.find((item) => item.status === "changed")?.existing : null);
+  if (documentToOpen) await openDocument(documentToOpen.id);
+  const parts = [];
+  if (imported.length) parts.push(`新增 ${imported.length} 篇`);
+  if (updated) parts.push(`更新 ${updated} 篇`);
+  if (skipped) parts.push(`跳过 ${skipped} 篇`);
+  toast(`${parts.join("，") || "没有需要导入的文档"}；不会修改来源文件`);
+  return { count: imported.length, root: organized.root || analysis.incomingRoot, skipped, updated };
+}
+
+async function chooseDuplicateStrategy(analysis) {
+  elements.duplicateImportSummary.textContent = `“${analysis.incomingRoot}”中发现 ${analysis.sameCount + analysis.changedCount} 篇可能重复的文档。`;
+  elements.duplicateSameCount.textContent = String(analysis.sameCount);
+  elements.duplicateChangedCount.textContent = String(analysis.changedCount);
+  elements.duplicateNewCount.textContent = String(analysis.newCount);
+  const defaultOption = elements.duplicateImportDialog.querySelector('input[value="smart"]');
+  if (defaultOption) defaultOption.checked = true;
+  elements.duplicateImportDialog.showModal();
+  const result = await waitForDialog(elements.duplicateImportDialog);
+  if (result !== "confirm") return null;
+  return elements.duplicateImportDialog.querySelector('input[name="duplicateStrategy"]:checked')?.value || "smart";
+}
+
+async function previewBackupRestore(backup) {
+  const records = (backup.documents || []).filter((record) => record && typeof record.name === "string");
+  const existingNames = new Map(state.documents.map((document) => [document.name.toLocaleLowerCase(), document]));
+  const conflicts = records.filter((record) => existingNames.has(record.name.toLocaleLowerCase())).length;
+  elements.backupPreviewDate.textContent = formatBackupDate(backup.exportedAt);
+  elements.backupPreviewCount.textContent = String(records.length);
+  elements.backupPreviewConflictCount.textContent = String(conflicts);
+  elements.backupPreviewSummary.textContent = conflicts
+    ? `发现 ${conflicts} 篇同名文档。恢复会建立独立文件夹，不会覆盖现有内容。`
+    : "没有发现同名文档。恢复内容仍会进入独立文件夹。";
+  elements.backupPreviewList.replaceChildren();
+
+  const checkboxes = records.map((record, index) => {
+    const row = window.document.createElement("label");
+    row.className = "backup-preview-item";
+    const checkbox = window.document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = true;
+    checkbox.dataset.index = String(index);
+    const path = window.document.createElement("span");
+    path.textContent = record.path || record.name;
+    const status = window.document.createElement("small");
+    const existing = existingNames.get(record.name.toLocaleLowerCase());
+    if (existing) {
+      const content = typeof record.draft === "string" ? record.draft : record.original || "";
+      status.textContent = content === existing.draft ? "与现有同名文档相同" : "已有同名文档";
+      status.className = "is-conflict";
+    } else {
+      status.textContent = "可恢复";
+    }
+    row.append(checkbox, path, status);
+    elements.backupPreviewList.append(row);
+    return checkbox;
+  });
+
+  const updateSelection = () => {
+    const selected = checkboxes.filter((checkbox) => checkbox.checked).length;
+    elements.backupSelectedCount.textContent = `已选择 ${selected} 篇`;
+    elements.backupRestoreButton.disabled = selected === 0;
+  };
+  for (const checkbox of checkboxes) checkbox.addEventListener("change", updateSelection);
+  elements.backupSelectAllButton.onclick = () => {
+    for (const checkbox of checkboxes) checkbox.checked = true;
+    updateSelection();
+  };
+  elements.backupSelectNoneButton.onclick = () => {
+    for (const checkbox of checkboxes) checkbox.checked = false;
+    updateSelection();
+  };
+  updateSelection();
+  elements.backupPreviewDialog.showModal();
+  const result = await waitForDialog(elements.backupPreviewDialog);
+  if (result !== "confirm") return null;
+  return records.filter((_, index) => checkboxes[index].checked);
+}
+
+function formatBackupDate(value) {
+  const timestamp = Date.parse(value || "");
+  return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString("zh-CN") : "未记录";
+}
+
+function importResultNote(result, prefix = "导入的是浏览器本地副本，不会修改来源文件。") {
+  const details = [];
+  if (result.updated) details.push(`更新 Moyo 内部原文 ${result.updated} 篇`);
+  if (result.skipped) details.push(`跳过重复文档 ${result.skipped} 篇`);
+  return details.length ? `${prefix} ${details.join("，")}。` : prefix;
 }
 
 async function saveCopy() {
