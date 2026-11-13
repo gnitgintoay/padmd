@@ -96,6 +96,7 @@ describe("Moyo backup package", () => {
     const bytes = createBackupArchive([{
       name: "笔记.md", path: "课程/笔记.md", original: "原文", draft: "修改稿",
       source: "folder", createdAt: 1, modifiedAt: 2,
+      favorite: true, lastOpenedAt: 3,
       history: [{ id: "v1", content: "旧稿", label: "测试", createdAt: 1 }],
     }], "2026-11-12T00:00:00.000Z");
     const restored = readZipPackage(bytes);
@@ -103,7 +104,7 @@ describe("Moyo backup package", () => {
     expect(restored.backup).toMatchObject({
       format: "moyo-backup",
       exportedAt: "2026-11-12T00:00:00.000Z",
-      documents: [{ path: "课程/笔记.md", original: "原文", draft: "修改稿" }],
+      documents: [{ path: "课程/笔记.md", original: "原文", draft: "修改稿", favorite: true, lastOpenedAt: 3 }],
     });
     expect(restored.backup.documents[0].history).toHaveLength(1);
   });

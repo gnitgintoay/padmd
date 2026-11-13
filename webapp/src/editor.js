@@ -158,12 +158,20 @@ export function createMarkdownEditor(parent, { onChange, onSave }) {
     view.focus();
   }
 
+  function goToLine(lineNumber) {
+    const number = Math.max(1, Math.min(Number(lineNumber) || 1, view.state.doc.lines));
+    const position = view.state.doc.line(number).from;
+    view.dispatch({ selection: EditorSelection.cursor(position), scrollIntoView: true });
+    view.focus();
+  }
+
   return {
     view,
     setText,
     getText,
     wrap,
     prefixLines,
+    goToLine,
     undo: () => undo(view),
     redo: () => redo(view),
     find: () => {

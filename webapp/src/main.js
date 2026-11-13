@@ -34,6 +34,7 @@ const elements = {
   themeButton: $("#themeButton"),
   themeColorMeta: $("#themeColorMeta"),
   librarySearch: $("#librarySearch"),
+  libraryViewButtons: [...document.querySelectorAll("[data-library-view]")],
   libraryNotice: $("#libraryNotice"),
   libraryCount: $("#libraryCount"),
   selectionModeButton: $("#selectionModeButton"),
@@ -60,6 +61,10 @@ const elements = {
   singleModeButton: $("#singleModeButton"),
   compareModeButton: $("#compareModeButton"),
   focusModeButton: $("#focusModeButton"),
+  outlineButton: $("#outlineButton"),
+  outlinePanel: $("#outlinePanel"),
+  outlineList: $("#outlineList"),
+  closeOutlineButton: $("#closeOutlineButton"),
   folderPath: $("#folderPath"),
   workspace: $("#workspace"),
   originalContent: $("#originalContent"),
@@ -113,6 +118,7 @@ const state = {
   splitRatio: 0.46,
   sidebarCollapsed: false,
   focusMode: false,
+  libraryView: "all",
   lastFullBackupAt: 0,
   collapsedFolders: new Set(),
   selectionMode: false,
@@ -120,6 +126,7 @@ const state = {
   selectedTrashIds: new Set(),
   trashOpen: false,
   toastTimer: null,
+  outlineTimer: null,
 };
 
 let syncScrollOwner = null;
@@ -207,6 +214,13 @@ function wireEvents() {
   });
 
   elements.librarySearch.addEventListener("input", renderLibrary);
+  for (const button of elements.libraryViewButtons) {
+    button.addEventListener("click", () => {
+      state.libraryView = button.dataset.libraryView;
+      for (const item of elements.libraryViewButtons) item.classList.toggle("is-active", item === button);
+      renderLibrary();
+    });
+  }
   elements.selectionModeButton.addEventListener("click", () => setSelectionMode(!state.selectionMode));
   elements.selectAllButton.addEventListener("click", toggleSelectAllVisible);
   elements.batchDeleteButton.addEventListener("click", batchMoveToTrash);
@@ -245,6 +259,8 @@ function wireEvents() {
   elements.compareModeButton.addEventListener("click", () => setMode("compare"));
   elements.focusModeButton.addEventListener("click", () => setFocusMode(true));
   elements.exitFocusButton.addEventListener("click", () => setFocusMode(false));
+  elements.outlineButton.addEventListener("click", () => setOutlineOpen(elements.outlinePanel.hidden));
+  elements.closeOutlineButton.addEventListener("click", () => setOutlineOpen(false));
   elements.findButton.addEventListener("click", editor.find);
   elements.undoButton.addEventListener("click", editor.undo);
   elements.redoButton.addEventListener("click", editor.redo);
@@ -312,7 +328,7 @@ function renderLibrary() {
   elements.documentTree.replaceChildren();
 
   if (!visible.length && !state.trashedDocuments.length) {
-    elements.documentTree.append(createLibraryEmptyState(Boolean(state.documents.length)));
+    elements.documentTree.append(createLibraryEmptyState());
     return;
   }
 
@@ -321,18 +337,39 @@ function renderLibrary() {
     for (const document of visible) addDocumentToTree(root, document);
     elements.documentTree.append(renderTreeNode(root, true));
   } else {
-    elements.documentTree.append(createLibraryEmptyState(true));
+    elements.documentTree.append(createLibraryEmptyState());
   }
 
-  if (state.trashedDocuments.length && !query && !state.selectionMode) elements.documentTree.append(renderTrash());
+  if (state.trashedDocuments.length && !query && !state.selectionMode && state.libraryView === "all") elements.documentTree.append(renderTrash());
 }
 
 function getVisibleDocuments() {
   const query = elements.librarySearch.value.trim().toLowerCase();
-  return state.documents.filter((document) => {
-    const haystack = `${document.name} ${document.path}`.toLowerCase();
-    return !query || haystack.includes(query);
+  let documents = [...state.documents];
+  if (state.libraryView === "favorites") documents = documents.filter((document) => document.favorite);
+  if (state.libraryView === "recent") {
+    documents = documents
+      .filter((document) => document.lastOpenedAt)
+      .sort((a, b) => Number(b.lastOpenedAt) - Number(a.lastOpenedAt))
+      .slice(0, 20);
+  }
+  if (!query) return documents;
+  return documents.filter((document) => {
+    const haystack = `${document.name} ${document.path} ${document.draft || ""} ${document.original || ""}`.toLowerCase();
+    return haystack.includes(query);
   });
+}
+
+function getSearchSnippet(document) {
+  const query = elements.librarySearch.value.trim().toLowerCase();
+  const parentPath = (document.path || "").split("/").slice(0, -1).join("/") || "浏览器本地";
+  if (!query) return parentPath;
+  const content = String(document.draft ?? document.original ?? "").replace(/\s+/g, " ").trim();
+  const index = content.toLowerCase().indexOf(query);
+  if (index < 0) return parentPath;
+  const start = Math.max(0, index - 28);
+  const end = Math.min(content.length, index + query.length + 46);
+  return `${start ? "…" : ""}${content.slice(start, end)}${end < content.length ? "…" : ""}`;
 }
 
 function setSelectionMode(enabled) {
@@ -410,12 +447,19 @@ async function batchMoveToTrash() {
   toast(`已将 ${movedCount} 篇文档移到回收站`);
 }
 
-function createLibraryEmptyState(isSearchResult) {
+function createLibraryEmptyState() {
   const empty = document.createElement("div");
   empty.className = "empty-list";
-  empty.innerHTML = isSearchResult
-    ? '<span class="empty-icon">⌕</span><strong>没有找到文档</strong><span>换一个名称或路径试试</span>'
-    : '<span class="empty-icon">＋</span><strong>文档库还是空的</strong><span>新建文档，或导入已有文件夹</span>';
+  const query = elements.librarySearch.value.trim();
+  if (query) {
+    empty.innerHTML = '<span class="empty-icon">⌕</span><strong>没有找到文档</strong><span>名称、路径和正文中都没有匹配内容</span>';
+  } else if (state.libraryView === "favorites") {
+    empty.innerHTML = '<span class="empty-icon">☆</span><strong>还没有收藏</strong><span>从文档菜单中选择“收藏”</span>';
+  } else if (state.libraryView === "recent") {
+    empty.innerHTML = '<span class="empty-icon">◷</span><strong>还没有最近文档</strong><span>打开文档后会自动出现在这里</span>';
+  } else {
+    empty.innerHTML = '<span class="empty-icon">＋</span><strong>文档库还是空的</strong><span>新建文档，或导入已有文件夹</span>';
+  }
   return empty;
 }
 
@@ -686,8 +730,8 @@ function renderDocumentRow(doc) {
   open.className = "doc-open";
   open.type = "button";
   const dirty = doc.draft !== doc.original;
-  const parentPath = (doc.path || "").split("/").slice(0, -1).join("/");
-  open.innerHTML = `<span class="doc-title"><span class="doc-file-icon" aria-hidden="true"></span><span class="doc-dirty"${dirty ? "" : " hidden"}>●</span><span class="doc-title-text">${escapeHtml(doc.name)}</span></span><span class="doc-path">${escapeHtml(parentPath || "浏览器本地")}</span>`;
+  const secondaryText = getSearchSnippet(doc);
+  open.innerHTML = `<span class="doc-title"><span class="doc-file-icon" aria-hidden="true"></span><span class="doc-dirty"${dirty ? "" : " hidden"}>●</span><span class="doc-title-text">${escapeHtml(doc.name)}</span><span class="doc-favorite"${doc.favorite ? "" : " hidden"} aria-label="已收藏">★</span></span><span class="doc-path">${escapeHtml(secondaryText)}</span>`;
   open.addEventListener("click", () => {
     if (state.selectionMode) toggleDocumentSelection(doc.id, container, selectControl);
     else openDocument(doc.id);
@@ -706,6 +750,7 @@ function renderDocumentRow(doc) {
   const popover = document.createElement("div");
   popover.className = "doc-menu-popover";
   const menuItems = [
+    ["favorite", doc.favorite ? "取消收藏" : "收藏", "★"],
     ["rename", "重命名", "✎"],
     ["category", "移动到分类", "↗"],
     ["duplicate", "创建副本", "⧉"],
@@ -736,7 +781,7 @@ function renderDocumentRow(doc) {
     });
     const rect = summary.getBoundingClientRect();
     popover.style.left = `${Math.max(8, rect.right - 145)}px`;
-    popover.style.top = `${Math.min(innerHeight - 130, rect.bottom + 4)}px`;
+    popover.style.top = `${Math.min(innerHeight - 190, rect.bottom + 4)}px`;
   });
   menu.append(summary, popover);
   container.append(open, menu);
@@ -748,6 +793,8 @@ async function openDocument(id) {
   await backupDraft();
   const document = await getDocument(id);
   if (!document || document.trashed) return;
+  document.lastOpenedAt = Date.now();
+  await putDocument(document);
   state.current = document;
   state.needsBackup = false;
   editor.setText(document.draft ?? document.original ?? "");
@@ -756,9 +803,10 @@ async function openDocument(id) {
   elements.folderPath.textContent = document.path || document.name;
   elements.welcome.hidden = true;
   elements.editorScreen.hidden = false;
+  if (!elements.outlinePanel.hidden) renderOutline(document.draft ?? document.original ?? "");
   await setSetting("lastDocumentId", document.id);
   updateDocumentStatus();
-  renderLibrary();
+  await refreshLibrary();
   toggleSidebar(false);
   requestAnimationFrame(editor.focus);
 }
@@ -769,9 +817,18 @@ function handleEditorUpdate({ text, docChanged, line, column }) {
   if (!docChanged || !state.current) return;
   state.current.draft = text;
   state.current.modifiedAt = Date.now();
+  const cached = state.documents.find((document) => document.id === state.current.id);
+  if (cached) {
+    cached.draft = text;
+    cached.modifiedAt = state.current.modifiedAt;
+  }
   state.needsBackup = true;
   updateDocumentStatus();
   updateCurrentDocumentDirtyMarker();
+  if (!elements.outlinePanel.hidden) {
+    clearTimeout(state.outlineTimer);
+    state.outlineTimer = setTimeout(() => renderOutline(text), 180);
+  }
 }
 
 function updateCurrentDocumentDirtyMarker() {
@@ -906,6 +963,8 @@ async function restoreMoyoBackup(backup) {
     });
     document.draft = typeof record.draft === "string" ? record.draft : document.original;
     document.history = Array.isArray(record.history) ? record.history.slice(0, 10) : [];
+    document.favorite = Boolean(record.favorite);
+    document.lastOpenedAt = Number(record.lastOpenedAt) || null;
     await putDocument(document);
     restored.push(document);
   }
@@ -1086,7 +1145,13 @@ async function renameCurrentDocument() {
 async function handleDocumentAction(document, action) {
   await backupDraft();
   document = await getDocument(document.id) || document;
-  if (action === "history") {
+  if (action === "favorite") {
+    document.favorite = !document.favorite;
+    document.favoriteUpdatedAt = Date.now();
+    await putDocument(document);
+    if (state.current?.id === document.id) state.current.favorite = document.favorite;
+    toast(document.favorite ? "已加入收藏" : "已取消收藏");
+  } else if (action === "history") {
     showHistory(document);
     return;
   } else if (action === "rename") {
@@ -1380,9 +1445,59 @@ async function setSidebarCollapsed(collapsed) {
 
 function setFocusMode(enabled) {
   state.focusMode = Boolean(enabled);
+  if (state.focusMode) setOutlineOpen(false);
   elements.app.classList.toggle("focus-mode", state.focusMode);
   elements.exitFocusButton.hidden = !state.focusMode;
   if (state.focusMode) requestAnimationFrame(editor.focus);
+}
+
+function setOutlineOpen(open) {
+  const visible = Boolean(open && state.current);
+  elements.outlinePanel.hidden = !visible;
+  elements.outlineButton.setAttribute("aria-expanded", String(visible));
+  if (visible) renderOutline(editor.getText());
+}
+
+function renderOutline(text) {
+  const headings = extractMarkdownHeadings(text);
+  elements.outlineList.replaceChildren();
+  if (!headings.length) {
+    const empty = document.createElement("div");
+    empty.className = "outline-empty";
+    empty.textContent = "当前文档还没有标题。使用 #、## 或 ### 建立大纲。";
+    elements.outlineList.append(empty);
+    return;
+  }
+  for (const heading of headings) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "outline-item";
+    button.dataset.level = String(heading.level);
+    button.style.setProperty("--outline-level", String(heading.level));
+    button.textContent = heading.text;
+    button.title = `跳到第 ${heading.line} 行`;
+    button.addEventListener("click", () => {
+      editor.goToLine(heading.line);
+      if (innerWidth <= 820) setOutlineOpen(false);
+    });
+    elements.outlineList.append(button);
+  }
+}
+
+function extractMarkdownHeadings(text) {
+  const headings = [];
+  let fenced = false;
+  String(text || "").split(/\r?\n/).forEach((line, index) => {
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced;
+      return;
+    }
+    if (fenced) return;
+    const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    if (!match) return;
+    headings.push({ level: match[1].length, text: match[2], line: index + 1 });
+  });
+  return headings;
 }
 
 function updateBackupStatus(documents = [...state.documents, ...state.trashedDocuments]) {

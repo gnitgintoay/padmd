@@ -172,6 +172,8 @@ export function createBackupArchive(documents, exportedAt = new Date().toISOStri
       source: document.source,
       createdAt: document.createdAt,
       modifiedAt: document.modifiedAt,
+      favorite: Boolean(document.favorite),
+      lastOpenedAt: document.lastOpenedAt || null,
       history: Array.isArray(document.history) ? document.history : [],
     })),
   }));

@@ -32,8 +32,14 @@
 
         <label class="search-box">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
-          <input id="librarySearch" type="search" placeholder="搜索名称或路径" autocomplete="off" />
+          <input id="librarySearch" type="search" placeholder="搜索名称、路径或正文" autocomplete="off" />
         </label>
+
+        <div class="library-views" role="group" aria-label="文档视图">
+          <button class="is-active" type="button" data-library-view="all">全部</button>
+          <button type="button" data-library-view="recent">最近</button>
+          <button type="button" data-library-view="favorites">收藏</button>
+        </div>
 
         <div class="library-actions">
           <button id="newButton" class="primary" type="button">新建</button>
@@ -67,6 +73,10 @@
       <main class="main">
         <button id="sidebarRailButton" class="sidebar-rail-button icon-button" type="button" aria-label="展开工作台" title="展开工作台"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
         <button id="exitFocusButton" class="exit-focus-button" type="button" hidden>退出专注</button>
+        <aside id="outlinePanel" class="outline-panel" hidden>
+          <header><strong>文档大纲</strong><button id="closeOutlineButton" type="button" aria-label="关闭大纲">×</button></header>
+          <nav id="outlineList" aria-label="当前文档标题"></nav>
+        </aside>
         <section id="welcome" class="welcome">
           <div class="welcome-card">
             <img src="icon.svg" alt="" width="72" height="72" />
@@ -100,7 +110,10 @@
               <button id="compareModeButton" type="button">原文对照</button>
             </div>
             <span id="folderPath" class="folder-path"></span>
-            <button id="focusModeButton" class="focus-mode-button" type="button">专注</button>
+            <div class="view-actions">
+              <button id="outlineButton" class="view-action-button" type="button" aria-expanded="false">大纲</button>
+              <button id="focusModeButton" class="view-action-button" type="button">专注</button>
+            </div>
           </div>
 
           <div id="workspace" class="workspace is-single">
