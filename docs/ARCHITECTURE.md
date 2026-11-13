@@ -24,7 +24,7 @@ db.js ───── IndexedDB: padmd-web
 
 ### `webapp/src/main.js`
 
-应用状态与界面协调层，负责初始化设置、构建文档树、文档与文件夹操作、草稿备份、响应式侧栏、同步滚动和对话框。
+应用状态与界面协调层，负责初始化设置、构建文档树、全文搜索、最近与收藏视图、文档与文件夹操作、草稿备份、响应式侧栏、同步滚动、跨窗口通知和对话框。
 
 ### `webapp/src/db.js`
 
@@ -41,7 +41,7 @@ db.js ───── IndexedDB: padmd-web
 
 ### `webapp/src/editor.js`
 
-封装 CodeMirror 6，包括 Markdown 语言支持、快捷键、查找替换、格式包装和 `==高亮==` 装饰。
+封装 CodeMirror 6，包括 Markdown 语言支持、快捷键、查找替换、格式包装、搜索结果定位、大纲行跳转和 `==高亮==` 装饰。编辑器作为独立模块加载，避免阻塞应用外壳的首屏资源。
 
 ## 数据模型
 
@@ -53,6 +53,8 @@ db.js ───── IndexedDB: padmd-web
 - `source`：创建或导入来源；
 - `importBatchId` 与 `importRoot`：文件夹或 ZIP 导入批次及其独立顶层目录；
 - `createdAt`、`modifiedAt`、`exportedAt`；
+- `lastOpenedAt` 与 `favorite`：最近打开时间和收藏状态；
+- `history`：最多 10 个关键历史版本；
 - `trashed`：是否位于回收站。
 
 文件夹没有独立数据库记录，而是从文档 `path` 动态构建。因此空文件夹不会单独保存。
@@ -60,6 +62,8 @@ db.js ───── IndexedDB: padmd-web
 ## 保存语义
 
 编辑器更新只修改内存中的 `draft`。恢复草稿会定期写入 IndexedDB，但不会写回系统文件。用户主动点击“保存副本”时，浏览器才生成下载文件。
+
+同一来源下的多个标签页通过 `BroadcastChannel` 通知已写入的文档更新。它只在浏览器本地传递文档 ID 和更新时间，不上传正文；收到更新的窗口由用户决定是否重新载入。
 
 ## PWA 与部署
 
