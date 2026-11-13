@@ -25,6 +25,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Moyo also bundles CodeMirror 6 and fflate, each distributed under the MIT
-License. Their copyright and license texts are included in the installed npm
-packages and generated dependency metadata.
+Moyo also directly uses the following open-source packages:
+
+- CodeMirror 6 packages (https://codemirror.net/) — MIT License
+- @lezer/highlight (https://github.com/lezer-parser/highlight) — MIT License
+- fflate (https://github.com/101arrowz/fflate) — MIT License
+- Vite (https://vite.dev/) — MIT License
+- vite-plugin-pwa (https://vite-pwa-org.netlify.app/) — MIT License
+- Vitest (https://vitest.dev/) — MIT License
+
+Their copyright and license texts are included in the installed npm packages
+and generated dependency metadata. This file records direct dependencies and
+the external project whose design was specifically referenced; transitive npm
+dependencies remain governed by their respective licenses.

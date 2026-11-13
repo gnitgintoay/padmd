@@ -13,11 +13,29 @@
   <a href="CONTRIBUTING.md">参与贡献</a>
 </p>
 
+<p align="center">
+  <img src="docs/images/moyo-editor-ipad.png" alt="Moyo 夜间模式的 Markdown 编辑界面" width="420" />
+</p>
+
+<p align="center"><sub>平板单栏编辑界面：Markdown 源码内样式提示、格式工具栏和本地备份状态。</sub></p>
+
 ## 为什么是 Moyo
 
 很多 Markdown 编辑器首先为电脑设计，放到平板上以后，文件导入、触控操作、分屏编辑和本地保存体验并不自然。Moyo 从平板使用场景出发：无需注册，不依赖服务器，打开网页即可管理、阅读和修改自己的 Markdown 文档。
 
 Moyo 导入的是一份浏览器本地副本。编辑过程不会自动覆盖“文件”App 或设备中的原文件；需要带走修改稿时，使用“保存副本”或“备份全部”。
+
+## Moyo 的选择
+
+Moyo 不是要取代所有桌面 Markdown 工具，而是专注于“平板上打开一个文件夹，安心阅读和修改，再把结果带走”这一条流程。
+
+| 设计取向 | Moyo 的做法 |
+| --- | --- |
+| 平板优先 | 触控尺寸、横竖屏布局、可收起工作台、蓝牙键盘快捷键 |
+| 本地优先 | 无账号、无业务后端，正文保存在当前浏览器 IndexedDB |
+| 非破坏编辑 | 导入后保留原文与恢复草稿，默认导出副本而不是覆盖来源文件 |
+| 文件夹语义 | 文件夹导入后保留分组和层级，单篇导入不会混进已有文件夹 |
+| 可迁移 | 支持单篇导出和包含原文、修改稿、分组与历史版本的 ZIP 备份 |
 
 ## 主要功能
 
@@ -56,6 +74,17 @@ iPadOS 18.4 及以上通常可以保留完整文件夹层级；旧版系统建�
 
 完整操作说明见 [使用指南](docs/USER_GUIDE.md)。
 
+## 当前限制
+
+Moyo 仍处于公开测试阶段，使用前请留意：
+
+- iPad Safari 无法像桌面原生应用一样长期持有任意文件的写入权限，因此 Moyo 默认保存浏览器内副本，不能静默写回“文件”App 中的来源文件。
+- 当前主要处理 Markdown 文字；图片附件、相对资源路径和 HTML 导出仍在规划中。
+- 暂无账号和跨设备同步；iPad、Android 与电脑上的本地文档库彼此独立。
+- 清除浏览器网站数据、卸载浏览器或系统回收存储空间都可能删除本地文档，应定期使用“备份全部”。
+- 大型文档库的全文搜索目前按需扫描，文档数量或正文体积很大时可能变慢。
+- 多标签页功能只负责提示外部修改，尚不提供多人协作、自动合并或冲突解决。
+
 ## 数据与隐私
 
 当前版本：
@@ -80,6 +109,8 @@ Moyo 在线版是一套纯静态 PWA：
 - GitHub Pages：静态发布。
 
 没有业务后端，也没有云端文档数据库。架构、数据流和安全边界见 [架构说明](docs/ARCHITECTURE.md)。仓库仍保留早期 Flutter 原型，用于记录 Android/iOS 原生方向的探索；当前线上产品以 `webapp/` 为准。
+
+仓库名 `padmd` 是项目早期名称。为避免破坏已经分享的 GitHub Pages 地址和安装入口，仓库暂不改名；面向用户的产品名称统一为 **Moyo · 墨页**。
 
 ## 本地开发
 
@@ -126,6 +157,17 @@ Moyo 处于公开测试阶段，核心 Markdown 阅读、编辑、全文搜索�
 ## 参与项目
 
 欢迎提交 Bug、兼容性反馈、交互建议和 Pull Request。开始之前请阅读 [贡献指南](CONTRIBUTING.md)。涉及安全问题时不要公开披露利用细节，请按照 [安全策略](SECURITY.md) 报告。
+
+## 开源来源与致谢
+
+Moyo 的产品需求和代码是在本仓库中持续迭代完成的。项目没有复制 Typora 的源代码；Typora 只是早期描述使用体验时的产品参照。
+
+- [mdread](https://github.com/techjewel/mdread)（MIT）：其文件夹选择降级思路、递归遍历方式和本地优先工作流为 Moyo 的文件导入设计提供了参考；相关来源已在代码注释中注明。
+- [CodeMirror 6](https://codemirror.net/)（MIT）：Markdown 编辑器与搜索能力。
+- [fflate](https://github.com/101arrowz/fflate)（MIT）：ZIP 导入和全库备份。
+- [Vite](https://vite.dev/) 与 [vite-plugin-pwa](https://vite-pwa-org.netlify.app/)（MIT）：构建与 PWA 离线支持。
+
+完整版权和许可说明见 [THIRD_PARTY_NOTICES](webapp/public/THIRD_PARTY_NOTICES.md)。
 
 ## 开源许可
 
