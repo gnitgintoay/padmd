@@ -41,6 +41,7 @@ const elements = {
   batchActions: $("#batchActions"),
   selectionCount: $("#selectionCount"),
   selectAllButton: $("#selectAllButton"),
+  batchMoveButton: $("#batchMoveButton"),
   batchDeleteButton: $("#batchDeleteButton"),
   documentTree: $("#documentTree"),
   newButton: $("#newButton"),
@@ -65,6 +66,7 @@ const elements = {
   outlinePanel: $("#outlinePanel"),
   outlineList: $("#outlineList"),
   closeOutlineButton: $("#closeOutlineButton"),
+  documentInfoButton: $("#documentInfoButton"),
   folderPath: $("#folderPath"),
   workspace: $("#workspace"),
   originalContent: $("#originalContent"),
@@ -104,6 +106,16 @@ const elements = {
   importReportChecked: $("#importReportChecked"),
   importReportSkipped: $("#importReportSkipped"),
   importReportNote: $("#importReportNote"),
+  documentInfoDialog: $("#documentInfoDialog"),
+  infoName: $("#infoName"),
+  infoPath: $("#infoPath"),
+  infoSource: $("#infoSource"),
+  infoCreatedAt: $("#infoCreatedAt"),
+  infoModifiedAt: $("#infoModifiedAt"),
+  infoLastOpenedAt: $("#infoLastOpenedAt"),
+  infoStats: $("#infoStats"),
+  infoDraftState: $("#infoDraftState"),
+  infoFavorite: $("#infoFavorite"),
   toast: $("#toast"),
   toastMessage: $("#toastMessage"),
   toastAction: $("#toastAction"),
@@ -127,10 +139,14 @@ const state = {
   trashOpen: false,
   toastTimer: null,
   outlineTimer: null,
+  searchTimer: null,
+  currentPersistedModifiedAt: 0,
 };
 
 let syncScrollOwner = null;
 let editor;
+let documentSyncChannel = null;
+const instanceId = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 
 initialize().catch((error) => {
   console.error("Moyo failed to start", error);
@@ -155,6 +171,7 @@ async function initialize() {
   // Bind controls before touching persistent storage. Some embedded WebKit
   // browsers can take a moment to open IndexedDB on their first launch.
   wireEvents();
+  wireCrossTabSync();
   const [theme, splitRatio, editorMode, sidebarCollapsed, collapsedFolders, lastFullBackupAt] = await settingsPromise;
   applyTheme(theme);
   state.splitRatio = Number(splitRatio);
@@ -213,7 +230,10 @@ function wireEvents() {
     await setSetting("theme", next);
   });
 
-  elements.librarySearch.addEventListener("input", renderLibrary);
+  elements.librarySearch.addEventListener("input", () => {
+    clearTimeout(state.searchTimer);
+    state.searchTimer = setTimeout(renderLibrary, 120);
+  });
   for (const button of elements.libraryViewButtons) {
     button.addEventListener("click", () => {
       state.libraryView = button.dataset.libraryView;
@@ -223,6 +243,7 @@ function wireEvents() {
   }
   elements.selectionModeButton.addEventListener("click", () => setSelectionMode(!state.selectionMode));
   elements.selectAllButton.addEventListener("click", toggleSelectAllVisible);
+  elements.batchMoveButton.addEventListener("click", batchMoveDocuments);
   elements.batchDeleteButton.addEventListener("click", batchMoveToTrash);
   elements.documentTree.addEventListener("click", (event) => {
     if (!event.target.closest(".folder-menu-button, .folder-menu-popover")) closeFolderMenus();
@@ -261,6 +282,7 @@ function wireEvents() {
   elements.exitFocusButton.addEventListener("click", () => setFocusMode(false));
   elements.outlineButton.addEventListener("click", () => setOutlineOpen(elements.outlinePanel.hidden));
   elements.closeOutlineButton.addEventListener("click", () => setOutlineOpen(false));
+  elements.documentInfoButton.addEventListener("click", showDocumentInfo);
   elements.findButton.addEventListener("click", editor.find);
   elements.undoButton.addEventListener("click", editor.undo);
   elements.redoButton.addEventListener("click", editor.redo);
@@ -324,6 +346,8 @@ function renderLibrary() {
   const query = elements.librarySearch.value.trim().toLowerCase();
   const visible = getVisibleDocuments();
   elements.documentTree.classList.toggle("is-searching", Boolean(query));
+  elements.documentTree.classList.toggle("is-contextual", state.libraryView !== "all");
+  elements.documentTree.classList.toggle("is-flat-view", state.libraryView === "recent" && !query);
   updateSelectionControls(visible);
   elements.documentTree.replaceChildren();
 
@@ -333,9 +357,13 @@ function renderLibrary() {
   }
 
   if (visible.length) {
-    const root = { folders: new Map(), documents: [] };
-    for (const document of visible) addDocumentToTree(root, document);
-    elements.documentTree.append(renderTreeNode(root, true));
+    if (state.libraryView === "recent" && !query) {
+      for (const document of visible) elements.documentTree.append(renderDocumentRow(document));
+    } else {
+      const root = { folders: new Map(), documents: [] };
+      for (const document of visible) addDocumentToTree(root, document);
+      elements.documentTree.append(renderTreeNode(root, true));
+    }
   } else {
     elements.documentTree.append(createLibraryEmptyState());
   }
@@ -360,16 +388,40 @@ function getVisibleDocuments() {
   });
 }
 
-function getSearchSnippet(document) {
+function getDocumentSecondary(document) {
   const query = elements.librarySearch.value.trim().toLowerCase();
   const parentPath = (document.path || "").split("/").slice(0, -1).join("/") || "浏览器本地";
-  if (!query) return parentPath;
+  if (!query && state.libraryView === "recent") {
+    return { text: `${formatRelativeTime(document.lastOpenedAt)} · ${parentPath}`, match: "" };
+  }
+  if (!query) return { text: parentPath, match: "" };
   const content = String(document.draft ?? document.original ?? "").replace(/\s+/g, " ").trim();
   const index = content.toLowerCase().indexOf(query);
-  if (index < 0) return parentPath;
+  if (index < 0) return { text: parentPath, match: parentPath.toLowerCase().includes(query) ? query : "" };
   const start = Math.max(0, index - 28);
   const end = Math.min(content.length, index + query.length + 46);
-  return `${start ? "…" : ""}${content.slice(start, end)}${end < content.length ? "…" : ""}`;
+  return {
+    text: `${start ? "…" : ""}${content.slice(start, end)}${end < content.length ? "…" : ""}`,
+    match: query,
+  };
+}
+
+function highlightSearchMatch(text, query) {
+  const index = query ? text.toLowerCase().indexOf(query.toLowerCase()) : -1;
+  if (index < 0) return escapeHtml(text);
+  return `${escapeHtml(text.slice(0, index))}<mark>${escapeHtml(text.slice(index, index + query.length))}</mark>${escapeHtml(text.slice(index + query.length))}`;
+}
+
+function formatRelativeTime(timestamp) {
+  const elapsed = Math.max(0, Date.now() - Number(timestamp || 0));
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} 天前`;
+  return new Date(timestamp).toLocaleDateString("zh-CN");
 }
 
 function setSelectionMode(enabled) {
@@ -387,6 +439,7 @@ function updateSelectionControls(visible = getVisibleDocuments()) {
   const selectedCount = state.selectedDocumentIds.size;
   elements.selectionCount.textContent = `已选 ${selectedCount} 篇`;
   elements.batchDeleteButton.disabled = selectedCount === 0;
+  elements.batchMoveButton.disabled = selectedCount === 0;
   const allVisibleSelected = visible.length > 0
     && visible.every((document) => state.selectedDocumentIds.has(document.id));
   elements.selectAllButton.disabled = visible.length === 0;
@@ -412,6 +465,36 @@ function toggleSelectAllVisible() {
     else state.selectedDocumentIds.delete(document.id);
   }
   renderLibrary();
+}
+
+async function batchMoveDocuments() {
+  const selectedIds = new Set(state.selectedDocumentIds);
+  if (!selectedIds.size) return;
+  await backupDraft();
+  const value = await promptText(
+    `移动 ${selectedIds.size} 篇文档`,
+    "目标分类路径（例如：学习/课程；留空放到根目录）",
+    "",
+  );
+  if (value === null) return;
+  const category = normalizeCategory(value);
+  const documents = await listDocuments();
+  for (const document of documents) {
+    if (!selectedIds.has(document.id)) continue;
+    document.path = category ? `${category}/${document.name}` : document.name;
+    document.modifiedAt = Date.now();
+    await putDocument(document);
+    if (state.current?.id === document.id) {
+      state.current.path = document.path;
+      state.current.modifiedAt = document.modifiedAt;
+      state.currentPersistedModifiedAt = Number(document.modifiedAt) || 0;
+      elements.folderPath.textContent = document.path;
+    }
+  }
+  state.selectedDocumentIds.clear();
+  state.selectionMode = false;
+  await refreshLibrary();
+  toast(category ? `已将 ${selectedIds.size} 篇文档移动到“${category}”` : `已将 ${selectedIds.size} 篇文档移动到根目录`);
 }
 
 async function batchMoveToTrash() {
@@ -730,11 +813,12 @@ function renderDocumentRow(doc) {
   open.className = "doc-open";
   open.type = "button";
   const dirty = doc.draft !== doc.original;
-  const secondaryText = getSearchSnippet(doc);
-  open.innerHTML = `<span class="doc-title"><span class="doc-file-icon" aria-hidden="true"></span><span class="doc-dirty"${dirty ? "" : " hidden"}>●</span><span class="doc-title-text">${escapeHtml(doc.name)}</span><span class="doc-favorite"${doc.favorite ? "" : " hidden"} aria-label="已收藏">★</span></span><span class="doc-path">${escapeHtml(secondaryText)}</span>`;
+  const secondary = getDocumentSecondary(doc);
+  const query = elements.librarySearch.value.trim();
+  open.innerHTML = `<span class="doc-title"><span class="doc-file-icon" aria-hidden="true"></span><span class="doc-dirty"${dirty ? "" : " hidden"}>●</span><span class="doc-title-text">${highlightSearchMatch(doc.name, query)}</span><span class="doc-favorite"${doc.favorite ? "" : " hidden"} aria-label="已收藏">★</span></span><span class="doc-path">${highlightSearchMatch(secondary.text, secondary.match)}</span>`;
   open.addEventListener("click", () => {
     if (state.selectionMode) toggleDocumentSelection(doc.id, container, selectControl);
-    else openDocument(doc.id);
+    else openDocument(doc.id, { revealQuery: elements.librarySearch.value.trim() });
   });
 
   if (state.selectionMode) {
@@ -788,14 +872,19 @@ function renderDocumentRow(doc) {
   return container;
 }
 
-async function openDocument(id) {
-  if (state.current?.id === id) return;
+async function openDocument(id, { revealQuery = "" } = {}) {
+  if (state.current?.id === id) {
+    if (revealQuery) editor.revealText(revealQuery);
+    toggleSidebar(false);
+    return;
+  }
   await backupDraft();
   const document = await getDocument(id);
   if (!document || document.trashed) return;
   document.lastOpenedAt = Date.now();
   await putDocument(document);
   state.current = document;
+  state.currentPersistedModifiedAt = Number(document.modifiedAt) || 0;
   state.needsBackup = false;
   editor.setText(document.draft ?? document.original ?? "");
   elements.originalContent.textContent = document.original ?? "";
@@ -808,7 +897,9 @@ async function openDocument(id) {
   updateDocumentStatus();
   await refreshLibrary();
   toggleSidebar(false);
-  requestAnimationFrame(editor.focus);
+  requestAnimationFrame(() => {
+    if (!revealQuery || !editor.revealText(revealQuery)) editor.focus();
+  });
 }
 
 function handleEditorUpdate({ text, docChanged, line, column }) {
@@ -845,6 +936,7 @@ async function backupDraft() {
   state.current.draft = editor.getText();
   state.current.modifiedAt = Date.now();
   await putDocument(state.current);
+  announceDocumentUpdate(state.current);
   state.needsBackup = false;
   updateDocumentStatus();
 }
@@ -1035,6 +1127,7 @@ async function setDraftAsOriginal() {
   state.current.modifiedAt = Date.now();
   state.needsBackup = false;
   await putDocument(state.current);
+  announceDocumentUpdate(state.current);
   elements.originalContent.textContent = nextOriginal;
   updateDocumentStatus();
   renderLibrary();
@@ -1047,6 +1140,7 @@ async function setDraftAsOriginal() {
       document.original = previousOriginal;
       document.modifiedAt = Date.now();
       await putDocument(document);
+      announceDocumentUpdate(document);
       if (state.current?.id === documentId) {
         state.current = document;
         elements.originalContent.textContent = previousOriginal;
@@ -1067,6 +1161,7 @@ async function discardChanges() {
   state.current.modifiedAt = Date.now();
   state.needsBackup = false;
   await putDocument(state.current);
+  announceDocumentUpdate(state.current);
   editor.setText(state.current.original);
   updateDocumentStatus();
   renderLibrary();
@@ -1498,6 +1593,90 @@ function extractMarkdownHeadings(text) {
     headings.push({ level: match[1].length, text: match[2], line: index + 1 });
   });
   return headings;
+}
+
+function showDocumentInfo() {
+  if (!state.current) return;
+  const document = state.current;
+  const text = editor.getText();
+  const lines = text ? text.split("\n").length : 0;
+  const characters = [...text].length;
+  const words = text.trim() ? text.trim().split(/\s+/u).length : 0;
+  const sourceLabels = {
+    file: "单个文件导入",
+    folder: "文件夹导入",
+    zip: "ZIP 导入",
+    created: "Moyo 新建",
+    duplicate: "Moyo 副本",
+    "backup-restore": "Moyo 备份恢复",
+    "flutter-migration": "旧版迁移",
+  };
+  elements.infoName.textContent = document.name;
+  elements.infoPath.textContent = document.path || document.name;
+  elements.infoSource.textContent = sourceLabels[document.source] || document.source || "本地文档";
+  elements.infoCreatedAt.textContent = formatDateTime(document.createdAt);
+  elements.infoModifiedAt.textContent = formatDateTime(document.modifiedAt);
+  elements.infoLastOpenedAt.textContent = formatDateTime(document.lastOpenedAt);
+  elements.infoStats.textContent = `${lines} 行 · ${characters} 字符 · ${words} 词`;
+  elements.infoDraftState.textContent = state.needsBackup
+    ? "有尚未写入恢复草稿的修改"
+    : text === document.original ? "修改稿与 Moyo 原文一致" : "恢复草稿已保存在本浏览器";
+  elements.infoFavorite.textContent = document.favorite ? "已收藏" : "未收藏";
+  elements.documentInfoDialog.showModal();
+}
+
+function formatDateTime(timestamp) {
+  return Number(timestamp) ? new Date(timestamp).toLocaleString("zh-CN") : "未记录";
+}
+
+function wireCrossTabSync() {
+  if (typeof BroadcastChannel !== "function") return;
+  documentSyncChannel = new BroadcastChannel("moyo-document-sync");
+  documentSyncChannel.addEventListener("message", (event) => {
+    const message = event.data;
+    if (!message || message.sender === instanceId || message.type !== "document-updated") return;
+    if (!state.current || message.id !== state.current.id) return;
+    if (Number(message.modifiedAt) <= state.currentPersistedModifiedAt) return;
+    toast("这篇文档已在另一个窗口更新", {
+      actionLabel: "重新载入",
+      persistent: true,
+      onAction: () => reloadDocumentFromOtherWindow(message.id),
+    });
+  });
+}
+
+function announceDocumentUpdate(document) {
+  if (!document) return;
+  if (state.current?.id === document.id) state.currentPersistedModifiedAt = Number(document.modifiedAt) || Date.now();
+  documentSyncChannel?.postMessage({
+    type: "document-updated",
+    sender: instanceId,
+    id: document.id,
+    modifiedAt: Number(document.modifiedAt) || Date.now(),
+  });
+}
+
+async function reloadDocumentFromOtherWindow(id) {
+  if (state.needsBackup) {
+    const confirmed = await confirmAction(
+      "载入另一窗口的版本？",
+      "当前窗口尚未写入恢复草稿的修改会被放弃。",
+      "重新载入",
+    );
+    if (!confirmed) return;
+  }
+  const document = await getDocument(id);
+  if (!document || document.trashed) return;
+  state.current = document;
+  state.currentPersistedModifiedAt = Number(document.modifiedAt) || 0;
+  state.needsBackup = false;
+  editor.setText(document.draft ?? document.original ?? "");
+  elements.originalContent.textContent = document.original ?? "";
+  elements.documentName.textContent = document.name;
+  elements.folderPath.textContent = document.path || document.name;
+  updateDocumentStatus();
+  await refreshLibrary();
+  toast("已载入另一窗口保存的版本");
 }
 
 function updateBackupStatus(documents = [...state.documents, ...state.trashedDocuments]) {

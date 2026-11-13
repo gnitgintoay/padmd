@@ -165,6 +165,20 @@ export function createMarkdownEditor(parent, { onChange, onSave }) {
     view.focus();
   }
 
+  function revealText(query) {
+    const needle = String(query || "").trim();
+    if (!needle) return false;
+    const content = view.state.doc.toString();
+    const from = content.toLowerCase().indexOf(needle.toLowerCase());
+    if (from < 0) return false;
+    view.dispatch({
+      selection: EditorSelection.range(from, from + needle.length),
+      scrollIntoView: true,
+    });
+    view.focus();
+    return true;
+  }
+
   return {
     view,
     setText,
@@ -172,6 +186,7 @@ export function createMarkdownEditor(parent, { onChange, onSave }) {
     wrap,
     prefixLines,
     goToLine,
+    revealText,
     undo: () => undo(view),
     redo: () => redo(view),
     find: () => {

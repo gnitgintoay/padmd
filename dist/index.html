@@ -12,8 +12,8 @@
     <link rel="apple-touch-icon" href="/icon-180.png?v=3" sizes="180x180" type="image/png" />
     <link rel="apple-touch-icon-precomposed" href="/icon-180.png?v=3" sizes="180x180" />
     <title>Moyo · 墨页</title>
-    <script type="module" crossorigin src="/assets/index-FcXoR_Kz.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CzaMGrMY.css">
+    <script type="module" crossorigin src="/assets/index-3iI3cnah.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B8uugWCT.css">
   <link rel="manifest" href="/manifest.webmanifest"></head>
   <body>
     <div id="app" class="app">
@@ -58,6 +58,7 @@
         <div id="batchActions" class="batch-actions" hidden>
           <span id="selectionCount">已选 0 篇</span>
           <button id="selectAllButton" type="button">全选</button>
+          <button id="batchMoveButton" type="button" disabled>移动分类</button>
           <button id="batchDeleteButton" class="danger-text" type="button" disabled>移到回收站</button>
         </div>
         <nav id="documentTree" class="document-tree" aria-label="Markdown 文档" tabindex="0"></nav>
@@ -114,6 +115,7 @@
             <span id="folderPath" class="folder-path"></span>
             <div class="view-actions">
               <button id="outlineButton" class="view-action-button" type="button" aria-expanded="false">大纲</button>
+              <button id="documentInfoButton" class="view-action-button" type="button">信息</button>
               <button id="focusModeButton" class="view-action-button" type="button">专注</button>
             </div>
           </div>
@@ -205,6 +207,24 @@
           <button id="storageBackupButton" class="primary" type="button">立即备份</button>
           <button value="cancel">关闭</button>
         </div>
+      </form>
+    </dialog>
+
+    <dialog id="documentInfoDialog" class="document-info-dialog">
+      <form method="dialog">
+        <h2>文档信息</h2>
+        <div class="document-info-name" id="infoName"></div>
+        <dl class="document-info-list">
+          <div><dt>路径</dt><dd id="infoPath">—</dd></div>
+          <div><dt>来源</dt><dd id="infoSource">—</dd></div>
+          <div><dt>创建时间</dt><dd id="infoCreatedAt">—</dd></div>
+          <div><dt>修改时间</dt><dd id="infoModifiedAt">—</dd></div>
+          <div><dt>最近打开</dt><dd id="infoLastOpenedAt">—</dd></div>
+          <div><dt>内容统计</dt><dd id="infoStats">—</dd></div>
+          <div><dt>当前状态</dt><dd id="infoDraftState">—</dd></div>
+          <div><dt>收藏</dt><dd id="infoFavorite">否</dd></div>
+        </dl>
+        <div class="dialog-actions"><button value="cancel">关闭</button></div>
       </form>
     </dialog>
 
