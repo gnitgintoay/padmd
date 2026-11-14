@@ -1,5 +1,6 @@
 import "./styles.css";
 import { registerSW } from "virtual:pwa-register";
+import { calculateSyncedScrollTop } from "./scroll-sync.js";
 
 import {
   createDocument,
@@ -159,7 +160,9 @@ const state = {
   currentPersistedModifiedAt: 0,
 };
 
-let syncScrollOwner = null;
+let syncScrollLocked = false;
+let syncScrollUnlockFrame = 0;
+let comparisonAlignmentFrame = 0;
 let editor;
 let documentSyncChannel = null;
 const instanceId = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
@@ -904,6 +907,7 @@ async function openDocument(id, { revealQuery = "" } = {}) {
   state.needsBackup = false;
   editor.setText(document.draft ?? document.original ?? "");
   elements.originalContent.textContent = document.original ?? "";
+  elements.originalContent.scrollTop = 0;
   elements.documentName.textContent = document.name;
   elements.folderPath.textContent = document.path || document.name;
   elements.welcome.hidden = true;
@@ -1590,7 +1594,8 @@ function waitForDialog(dialog) {
 async function setMode(mode) {
   // A layout change may make CodeMirror adjust its own scroll position. It is
   // not a user scroll and must never start cross-pane synchronization.
-  syncScrollOwner = null;
+  cancelAnimationFrame(syncScrollUnlockFrame);
+  syncScrollLocked = false;
   state.mode = mode;
   applyMode(mode);
   await setSetting("editorMode", mode);
@@ -1601,6 +1606,7 @@ function applyMode(mode) {
   elements.workspace.classList.toggle("is-single", !compare);
   elements.singleModeButton.classList.toggle("is-active", !compare);
   elements.compareModeButton.classList.toggle("is-active", compare);
+  if (compare) scheduleComparisonAlignment();
 }
 
 function wireResizableSplit() {
@@ -1644,30 +1650,62 @@ function applySplitRatio(value) {
   state.splitRatio = Number.isFinite(value) ? value : 0.46;
   document.documentElement.style.setProperty("--split-ratio", `${state.splitRatio * 100}%`);
   elements.splitGutter.setAttribute("aria-valuenow", String(Math.round(state.splitRatio * 100)));
+  if (state.mode === "compare") scheduleComparisonAlignment();
 }
 
 function wireSynchronizedScroll() {
   const editScroller = elements.editor.querySelector(".cm-scroller");
+  const gutters = elements.editor.querySelector(".cm-gutters");
+  const updateGutterWidth = () => {
+    const width = Math.ceil(gutters?.getBoundingClientRect().width || 0);
+    if (width) elements.workspace.style.setProperty("--compare-gutter-width", `${width}px`);
+  };
   const sync = (source, target) => {
-    if (syncScrollOwner !== source || state.mode !== "compare") return;
+    if (syncScrollLocked || state.mode !== "compare") return;
     const sourceRange = source.scrollHeight - source.clientHeight;
     const targetRange = target.scrollHeight - target.clientHeight;
     if (sourceRange <= 0 || targetRange <= 0) return;
-    const next = (source.scrollTop / sourceRange) * targetRange;
-    if (Math.abs(target.scrollTop - next) > 1) target.scrollTop = next;
+    const next = calculateSyncedScrollTop({
+      sourceTop: source.scrollTop,
+      sourceRange,
+      targetRange,
+      sameContent: editor.getText() === (state.current?.original ?? ""),
+    });
+    if (Math.abs(target.scrollTop - next) <= 1) return;
+    syncScrollLocked = true;
+    target.scrollTop = next;
+    cancelAnimationFrame(syncScrollUnlockFrame);
+    syncScrollUnlockFrame = requestAnimationFrame(() => { syncScrollLocked = false; });
   };
 
-  const claim = (scroller) => { syncScrollOwner = scroller; };
-  for (const scroller of [editScroller, elements.originalContent]) {
-    scroller.addEventListener("pointerdown", () => claim(scroller), { passive: true });
-    scroller.addEventListener("touchstart", () => claim(scroller), { passive: true });
-    scroller.addEventListener("wheel", () => claim(scroller), { passive: true });
-    scroller.addEventListener("keydown", (event) => {
-      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) claim(scroller);
-    });
-  }
   editScroller.addEventListener("scroll", () => sync(editScroller, elements.originalContent), { passive: true });
   elements.originalContent.addEventListener("scroll", () => sync(elements.originalContent, editScroller), { passive: true });
+  updateGutterWidth();
+  if (gutters && "ResizeObserver" in window) new ResizeObserver(() => {
+    updateGutterWidth();
+    scheduleComparisonAlignment();
+  }).observe(gutters);
+}
+
+function scheduleComparisonAlignment() {
+  cancelAnimationFrame(comparisonAlignmentFrame);
+  comparisonAlignmentFrame = requestAnimationFrame(() => {
+    if (state.mode !== "compare") return;
+    const editScroller = elements.editor.querySelector(".cm-scroller");
+    if (!editScroller) return;
+    const sourceRange = editScroller.scrollHeight - editScroller.clientHeight;
+    const targetRange = elements.originalContent.scrollHeight - elements.originalContent.clientHeight;
+    const next = calculateSyncedScrollTop({
+      sourceTop: editScroller.scrollTop,
+      sourceRange,
+      targetRange,
+      sameContent: editor.getText() === (state.current?.original ?? ""),
+    });
+    syncScrollLocked = true;
+    elements.originalContent.scrollTop = next;
+    cancelAnimationFrame(syncScrollUnlockFrame);
+    syncScrollUnlockFrame = requestAnimationFrame(() => { syncScrollLocked = false; });
+  });
 }
 
 async function setSidebarCollapsed(collapsed) {

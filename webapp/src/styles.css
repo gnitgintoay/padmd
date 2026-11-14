@@ -260,7 +260,7 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .workspace.is-single .original-pane, .workspace.is-single .split-gutter { display: none; }
 .pane { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
 .pane-label { padding: 7px 14px; color: var(--muted); background: var(--panel-2); font-size: 11px; border-bottom: 1px solid var(--line); }
-.original-pane pre { margin: 0; min-width: 0; overflow: auto; padding: 20px 22px 80px; color: var(--text); font: 16px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.original-pane pre { margin: 0; min-width: 0; overflow: auto; padding: 18px 10px 98px calc(var(--compare-gutter-width, 34px) + 10px); color: var(--text); font: 16px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; tab-size: 4; white-space: pre-wrap; overflow-wrap: anywhere; }
 .editor { min-width: 0; min-height: 0; overflow: hidden; }
 .editor .cm-editor { height: 100%; background: var(--bg); color: var(--text); font-size: 16px; }
 .editor .cm-scroller { overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; line-height: 1.65; padding-bottom: 80px; }
@@ -272,7 +272,7 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .editor .cm-focused { outline: none; }
 .editor .cm-panels { background: var(--panel); color: var(--text); border-color: var(--line); }
 .editor .cm-textfield { color: var(--text); background: var(--panel-2); border-color: var(--line); }
-.editor .cm-padmd-highlight { background: #f4cf83; border-radius: 4px; color: #3f2c21; padding: 0 1px; }
+.editor .cm-padmd-highlight { background: #f4cf83; border-radius: 4px; color: #3f2c21; }
 .editor .cm-padmd-highlight-mark { color: color-mix(in srgb, var(--muted) 55%, transparent); }
 
 .split-gutter { position: relative; background: var(--panel); cursor: col-resize; touch-action: none; }
