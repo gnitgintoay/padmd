@@ -240,6 +240,9 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .view-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 .view-action-button { border: 0; background: transparent; color: var(--muted); font-size: 12px; }
 .view-action-button[aria-expanded="true"] { color: var(--accent-strong); background: var(--panel-2); }
+.scroll-sync-button { min-width: 92px; }
+.scroll-sync-button[aria-pressed="true"] { color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.scroll-sync-button[aria-pressed="false"] { color: var(--muted); background: transparent; }
 .exit-focus-button { position: absolute; z-index: 40; right: 14px; top: max(12px, env(safe-area-inset-top)); opacity: 0.58; border-color: color-mix(in srgb, var(--line) 72%, transparent); background: color-mix(in srgb, var(--panel) 88%, transparent); box-shadow: 0 5px 18px rgb(42 27 20 / 0.12); backdrop-filter: blur(10px); }
 .exit-focus-button:hover, .exit-focus-button:focus-visible { opacity: 1; }
 .app.focus-mode { grid-template-columns: minmax(0, 1fr); }

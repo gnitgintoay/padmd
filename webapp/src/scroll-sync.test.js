@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { calculateSyncedScrollTop } from "./scroll-sync.js";
 
 describe("calculateSyncedScrollTop", () => {
-  it("uses the same pixel position when original and draft are identical", () => {
+  it("uses the same pixel position when content and rendered layout are identical", () => {
     expect(calculateSyncedScrollTop({
       sourceTop: 420,
       sourceRange: 1200,
@@ -19,6 +19,15 @@ describe("calculateSyncedScrollTop", () => {
       targetRange: 800,
       sameContent: false,
     })).toBe(200);
+  });
+
+  it("uses proportional progress when unequal pane widths create different wrapping", () => {
+    expect(calculateSyncedScrollTop({
+      sourceTop: 600,
+      sourceRange: 1200,
+      targetRange: 900,
+      sameContent: false,
+    })).toBe(450);
   });
 
   it("clamps an identical document position to the target range", () => {

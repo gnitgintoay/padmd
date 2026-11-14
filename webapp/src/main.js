@@ -64,6 +64,7 @@ const elements = {
   singleModeButton: $("#singleModeButton"),
   compareModeButton: $("#compareModeButton"),
   focusModeButton: $("#focusModeButton"),
+  scrollSyncButton: $("#scrollSyncButton"),
   outlineButton: $("#outlineButton"),
   outlinePanel: $("#outlinePanel"),
   outlineList: $("#outlineList"),
@@ -144,6 +145,8 @@ const state = {
   current: null,
   needsBackup: false,
   mode: "single",
+  scrollSyncEnabled: true,
+  comparisonContentMatches: true,
   splitRatio: 0.46,
   sidebarCollapsed: false,
   focusMode: false,
@@ -161,8 +164,9 @@ const state = {
   currentPersistedModifiedAt: 0,
 };
 
-let syncScrollLocked = false;
-let syncScrollUnlockFrame = 0;
+let syncScrollFrame = 0;
+let syncScrollSettleTimer = 0;
+let programmaticScrollTarget = null;
 let comparisonAlignmentFrame = 0;
 let editor;
 let toolbarSelection = null;
@@ -180,6 +184,7 @@ async function initialize() {
     getSetting("theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"),
     getSetting("splitRatio", 0.46),
     getSetting("editorMode", "single"),
+    getSetting("scrollSyncEnabled", true),
     getSetting("sidebarCollapsed", false),
     getSetting("collapsedFolders", []),
     getSetting("lastFullBackupAt", 0),
@@ -193,15 +198,17 @@ async function initialize() {
   // browsers can take a moment to open IndexedDB on their first launch.
   wireEvents();
   wireCrossTabSync();
-  const [theme, splitRatio, editorMode, sidebarCollapsed, collapsedFolders, lastFullBackupAt] = await settingsPromise;
+  const [theme, splitRatio, editorMode, scrollSyncEnabled, sidebarCollapsed, collapsedFolders, lastFullBackupAt] = await settingsPromise;
   applyTheme(theme);
   state.splitRatio = Number(splitRatio);
   state.mode = editorMode;
+  state.scrollSyncEnabled = scrollSyncEnabled !== false;
   state.sidebarCollapsed = Boolean(sidebarCollapsed);
   state.collapsedFolders = new Set(Array.isArray(collapsedFolders) ? collapsedFolders : []);
   state.lastFullBackupAt = Number(lastFullBackupAt) || 0;
   applySplitRatio(state.splitRatio);
   applyMode(state.mode);
+  applyScrollSyncMode();
   applySidebarCollapsed(state.sidebarCollapsed);
 
   const migrated = await migrateFlutterDocuments();
@@ -299,6 +306,7 @@ function wireEvents() {
   elements.saveCopyButton.addEventListener("click", saveCopy);
   elements.singleModeButton.addEventListener("click", () => setMode("single"));
   elements.compareModeButton.addEventListener("click", () => setMode("compare"));
+  elements.scrollSyncButton.addEventListener("click", () => setScrollSyncEnabled(!state.scrollSyncEnabled));
   elements.focusModeButton.addEventListener("click", () => setFocusMode(true));
   elements.exitFocusButton.addEventListener("click", () => setFocusMode(false));
   elements.outlineButton.addEventListener("click", () => setOutlineOpen(elements.outlinePanel.hidden));
@@ -926,6 +934,7 @@ async function openDocument(id, { revealQuery = "" } = {}) {
   state.currentPersistedModifiedAt = Number(document.modifiedAt) || 0;
   state.needsBackup = false;
   editor.setText(document.draft ?? document.original ?? "");
+  state.comparisonContentMatches = (document.draft ?? document.original ?? "") === (document.original ?? "");
   elements.originalContent.textContent = document.original ?? "";
   elements.originalContent.scrollTop = 0;
   elements.documentName.textContent = document.name;
@@ -960,6 +969,7 @@ function handleEditorUpdate({ text, docChanged, line, column, formatting }) {
   }
   if (!docChanged || !state.current) return;
   state.current.draft = text;
+  state.comparisonContentMatches = text === state.current.original;
   state.current.modifiedAt = Date.now();
   const cached = state.documents.find((document) => document.id === state.current.id);
   if (cached) {
@@ -1009,6 +1019,7 @@ async function backupDraft() {
 function updateDocumentStatus() {
   if (!state.current) return;
   const changed = state.current.draft !== state.current.original;
+  state.comparisonContentMatches = !changed;
   elements.discardButton.disabled = !changed;
   elements.overwriteOriginalButton.disabled = !changed;
   if (!changed) setSaveStatus("未修改", "clean");
@@ -1639,11 +1650,33 @@ function waitForDialog(dialog) {
 async function setMode(mode) {
   // A layout change may make CodeMirror adjust its own scroll position. It is
   // not a user scroll and must never start cross-pane synchronization.
-  cancelAnimationFrame(syncScrollUnlockFrame);
-  syncScrollLocked = false;
+  programmaticScrollTarget = null;
+  clearTimeout(syncScrollSettleTimer);
   state.mode = mode;
   applyMode(mode);
   await setSetting("editorMode", mode);
+}
+
+async function setScrollSyncEnabled(enabled) {
+  state.scrollSyncEnabled = Boolean(enabled);
+  applyScrollSyncMode();
+  await setSetting("scrollSyncEnabled", state.scrollSyncEnabled);
+}
+
+function applyScrollSyncMode() {
+  const enabled = state.scrollSyncEnabled;
+  elements.scrollSyncButton.textContent = enabled ? "⇅ 同步滚动" : "↕ 独立滚动";
+  elements.scrollSyncButton.setAttribute("aria-pressed", String(enabled));
+  elements.scrollSyncButton.title = enabled
+    ? "同步已开启；点击后两栏可以独立滚动"
+    : "当前两栏独立滚动；点击后恢复同步";
+  if (!enabled) {
+    cancelAnimationFrame(syncScrollFrame);
+    clearTimeout(syncScrollSettleTimer);
+    programmaticScrollTarget = null;
+  } else if (state.mode === "compare") {
+    scheduleComparisonAlignment();
+  }
 }
 
 function applyMode(mode) {
@@ -1651,6 +1684,7 @@ function applyMode(mode) {
   elements.workspace.classList.toggle("is-single", !compare);
   elements.singleModeButton.classList.toggle("is-active", !compare);
   elements.compareModeButton.classList.toggle("is-active", compare);
+  elements.scrollSyncButton.hidden = !compare;
   if (compare) scheduleComparisonAlignment();
 }
 
@@ -1705,22 +1739,33 @@ function wireSynchronizedScroll() {
     const width = Math.ceil(gutters?.getBoundingClientRect().width || 0);
     if (width) elements.workspace.style.setProperty("--compare-gutter-width", `${width}px`);
   };
-  const sync = (source, target) => {
-    if (syncScrollLocked || state.mode !== "compare") return;
+  const applySyncPosition = (source, target) => {
+    if (state.mode !== "compare" || !state.scrollSyncEnabled) return;
     const sourceRange = source.scrollHeight - source.clientHeight;
     const targetRange = target.scrollHeight - target.clientHeight;
     if (sourceRange <= 0 || targetRange <= 0) return;
+    const sameLayout = state.comparisonContentMatches
+      && Math.abs(source.scrollHeight - target.scrollHeight) <= 1;
     const next = calculateSyncedScrollTop({
       sourceTop: source.scrollTop,
       sourceRange,
       targetRange,
-      sameContent: editor.getText() === (state.current?.original ?? ""),
+      sameContent: sameLayout,
     });
     if (Math.abs(target.scrollTop - next) <= 1) return;
-    syncScrollLocked = true;
+    programmaticScrollTarget = target;
     target.scrollTop = next;
-    cancelAnimationFrame(syncScrollUnlockFrame);
-    syncScrollUnlockFrame = requestAnimationFrame(() => { syncScrollLocked = false; });
+  };
+  const sync = (source, target) => {
+    if (source === programmaticScrollTarget) {
+      programmaticScrollTarget = null;
+      return;
+    }
+    if (state.mode !== "compare" || !state.scrollSyncEnabled) return;
+    cancelAnimationFrame(syncScrollFrame);
+    syncScrollFrame = requestAnimationFrame(() => applySyncPosition(source, target));
+    clearTimeout(syncScrollSettleTimer);
+    syncScrollSettleTimer = setTimeout(() => applySyncPosition(source, target), 90);
   };
 
   editScroller.addEventListener("scroll", () => sync(editScroller, elements.originalContent), { passive: true });
@@ -1735,21 +1780,21 @@ function wireSynchronizedScroll() {
 function scheduleComparisonAlignment() {
   cancelAnimationFrame(comparisonAlignmentFrame);
   comparisonAlignmentFrame = requestAnimationFrame(() => {
-    if (state.mode !== "compare") return;
+    if (state.mode !== "compare" || !state.scrollSyncEnabled) return;
     const editScroller = elements.editor.querySelector(".cm-scroller");
     if (!editScroller) return;
     const sourceRange = editScroller.scrollHeight - editScroller.clientHeight;
     const targetRange = elements.originalContent.scrollHeight - elements.originalContent.clientHeight;
+    const sameLayout = state.comparisonContentMatches
+      && Math.abs(editScroller.scrollHeight - elements.originalContent.scrollHeight) <= 1;
     const next = calculateSyncedScrollTop({
       sourceTop: editScroller.scrollTop,
       sourceRange,
       targetRange,
-      sameContent: editor.getText() === (state.current?.original ?? ""),
+      sameContent: sameLayout,
     });
-    syncScrollLocked = true;
+    programmaticScrollTarget = elements.originalContent;
     elements.originalContent.scrollTop = next;
-    cancelAnimationFrame(syncScrollUnlockFrame);
-    syncScrollUnlockFrame = requestAnimationFrame(() => { syncScrollLocked = false; });
   });
 }
 
