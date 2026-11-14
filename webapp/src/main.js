@@ -1665,7 +1665,7 @@ async function setScrollSyncEnabled(enabled) {
 
 function applyScrollSyncMode() {
   const enabled = state.scrollSyncEnabled;
-  elements.scrollSyncButton.textContent = enabled ? "⇅ 同步滚动" : "↕ 独立滚动";
+  elements.scrollSyncButton.textContent = enabled ? "同步滚动" : "独立滚动";
   elements.scrollSyncButton.setAttribute("aria-pressed", String(enabled));
   elements.scrollSyncButton.title = enabled
     ? "同步已开启；点击后两栏可以独立滚动"
