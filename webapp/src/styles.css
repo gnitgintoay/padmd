@@ -33,6 +33,23 @@
   --shadow: 0 20px 50px rgb(92 57 39 / 0.14);
 }
 
+:root[data-theme="midnight"] {
+  color-scheme: dark;
+  --bg: #07090d;
+  --panel: #0c1017;
+  --panel-2: #121824;
+  --panel-3: #192235;
+  --text: #f4f7fb;
+  --muted: #8e9bae;
+  --line: #26334a;
+  --accent: #4d8dff;
+  --accent-strong: #79a9ff;
+  --accent-ink: #031022;
+  --danger: #ff7481;
+  --shadow: 0 22px 60px rgb(0 5 15 / 0.56);
+  --paper: #f7f9fc;
+}
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
@@ -83,6 +100,20 @@ button.danger { color: #fffaf3; background: #a9574f; border-color: #a9574f; }
 .icon-button { padding: 7px 10px; min-width: 38px; min-height: 38px; background: transparent; }
 .icon-button svg, .search-box svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .icon-button { display: inline-grid; place-items: center; }
+.theme-button { position: relative; }
+.theme-swatch { display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+.theme-swatch i { display: block; width: 6px; height: 6px; border: 1px solid color-mix(in srgb, var(--muted) 62%, transparent); border-radius: 50%; }
+.theme-swatch i:nth-child(1) { background: #fffaf2; }
+.theme-swatch i:nth-child(2) { background: #15171c; }
+.theme-swatch i:nth-child(3) { background: #4d8dff; }
+.theme-button[data-current-theme="light"] .theme-swatch i:nth-child(1),
+.theme-button[data-current-theme="dark"] .theme-swatch i:nth-child(2),
+.theme-button[data-current-theme="midnight"] .theme-swatch i:nth-child(3) { width: 8px; height: 8px; border-color: var(--accent-strong); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
+
+:root[data-theme="midnight"] .brand-icon { filter: hue-rotate(195deg) saturate(0.86) contrast(1.05); box-shadow: 0 0 0 1px #24375d, 0 8px 24px rgb(22 73 160 / 0.22); }
+:root[data-theme="midnight"] .editor .cm-padmd-highlight { background: #1e4f91; color: #f5f9ff; }
+:root[data-theme="midnight"] .editor .cm-activeLine,
+:root[data-theme="midnight"] .editor .cm-activeLineGutter { background: rgb(77 141 255 / 0.1); }
 
 .search-box {
   display: flex;
