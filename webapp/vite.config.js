@@ -2,6 +2,28 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 const base = process.env.BASE_PATH || "/padmd/";
+const analyticsToken = process.env.CLOUDFLARE_WEB_ANALYTICS_TOKEN?.trim();
+
+function cloudflareWebAnalytics() {
+  return {
+    name: "moyo-cloudflare-web-analytics",
+    transformIndexHtml() {
+      if (!analyticsToken) return [];
+
+      return [
+        {
+          tag: "script",
+          attrs: {
+            defer: true,
+            src: "https://static.cloudflareinsights.com/beacon.min.js",
+            "data-cf-beacon": JSON.stringify({ token: analyticsToken }),
+          },
+          injectTo: "body",
+        },
+      ];
+    },
+  };
+}
 
 export default defineConfig({
   base,
@@ -11,6 +33,7 @@ export default defineConfig({
     target: "es2020",
   },
   plugins: [
+    cloudflareWebAnalytics(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg", "icon-180.png", "icon-192.png", "icon-512.png", "THIRD_PARTY_NOTICES.md"],

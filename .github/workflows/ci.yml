@@ -30,5 +30,7 @@ jobs:
         run: npm test
       - name: Build PWA
         run: npm run build
+        env:
+          CLOUDFLARE_WEB_ANALYTICS_TOKEN: ${{ secrets.CLOUDFLARE_WEB_ANALYTICS_TOKEN }}
       - name: Audit production dependencies
         run: npm audit --omit=dev

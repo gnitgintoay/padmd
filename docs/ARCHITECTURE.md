@@ -71,10 +71,12 @@ Vite PWA 插件生成 Service Worker，缓存应用外壳以支持离线启动�
 
 Service Worker 缓存的是程序资源，不是文档数据库。文档仍由 IndexedDB 管理。
 
+生产构建可通过 `CLOUDFLARE_WEB_ANALYTICS_TOKEN` 注入 Cloudflare Web Analytics 信标。令牌为空时不生成信标，开发和 Fork 构建默认不会发出统计请求。信标只负责页面级访问与性能指标；Moyo 没有向它发送文档或编辑事件。
+
 ## 安全边界
 
 - 不使用业务服务器或云端文档数据库；
-- 当前代码不包含分析或遥测；
+- 可选的 Cloudflare Web Analytics 只收集页面级访问与性能指标，不读取 IndexedDB 或文档内容；
 - IndexedDB 遵循浏览器同源策略，但并不加密；
 - GitHub Pages 的同一主机下，不同路径仍属于同一来源；
 - 能控制同源页面代码的人，理论上能读取该来源的 IndexedDB；
