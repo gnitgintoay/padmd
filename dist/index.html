@@ -12,8 +12,8 @@
     <link rel="apple-touch-icon" href="/padmd/icon-180.png?v=3" sizes="180x180" type="image/png" />
     <link rel="apple-touch-icon-precomposed" href="/padmd/icon-180.png?v=3" sizes="180x180" />
     <title>Moyo · 墨页</title>
-    <script type="module" crossorigin src="/padmd/assets/index-ByrV9vgh.js"></script>
-    <link rel="stylesheet" crossorigin href="/padmd/assets/index-B6xhiMOf.css">
+    <script type="module" crossorigin src="/padmd/assets/index-BCmqSNte.js"></script>
+    <link rel="stylesheet" crossorigin href="/padmd/assets/index-Cq1TqgYm.css">
   <link rel="manifest" href="/padmd/manifest.webmanifest"></head>
   <body>
     <div id="app" class="app">
@@ -133,21 +133,30 @@
           </div>
 
           <div id="formatToolbar" class="format-toolbar" role="toolbar" aria-label="Markdown 格式">
-            <button type="button" data-prefix="# " title="标题">H</button>
-            <button type="button" data-wrap="**|**" title="加粗（⌘/Ctrl+B）"><strong>B</strong></button>
-            <button type="button" data-wrap="*|*" title="斜体（⌘/Ctrl+I）"><em>I</em></button>
-            <button type="button" data-prefix="- " title="无序列表">—</button>
-            <button type="button" data-prefix="1. " title="有序列表">1.</button>
-            <button type="button" data-prefix="- [ ] " title="待办事项">☐</button>
-            <button type="button" data-prefix="> " title="引用">›</button>
-            <button type="button" data-wrap="`|`" title="行内代码">&lt;/&gt;</button>
-            <button type="button" data-wrap="```\n|\n```" title="代码块">```</button>
-            <button type="button" data-wrap="==|==" title="高亮标记">高亮</button>
-            <button type="button" data-wrap="[|](https://)" title="链接">链接</button>
+            <div class="toolbar-group" role="group" aria-label="文字格式">
+              <span class="toolbar-group-label">文字</span>
+              <button type="button" data-command="bold" title="加粗；再次点击撤销（⌘/Ctrl+B）" aria-label="加粗" aria-pressed="false"><strong>B</strong></button>
+              <button type="button" data-command="italic" title="斜体；再次点击撤销（⌘/Ctrl+I）" aria-label="斜体" aria-pressed="false"><em>I</em></button>
+              <button type="button" data-command="highlight" title="高亮；再次点击撤销" aria-label="高亮" aria-pressed="false">高亮</button>
+              <button type="button" data-command="inlineCode" title="行内代码；再次点击撤销" aria-label="行内代码" aria-pressed="false">&lt;/&gt;</button>
+              <button type="button" data-command="link" title="插入链接" aria-label="插入链接" aria-pressed="false">链接</button>
+            </div>
+            <div class="toolbar-group" role="group" aria-label="段落格式">
+              <span class="toolbar-group-label">段落</span>
+              <button type="button" data-command="heading" title="一级标题（作用于整行；再次点击撤销）" aria-label="一级标题" aria-pressed="false">H1</button>
+              <button type="button" data-command="unordered" title="无序列表（作用于所选行；再次点击撤销）" aria-label="无序列表" aria-pressed="false">• 列表</button>
+              <button type="button" data-command="ordered" title="有序列表（自动编号；再次点击撤销）" aria-label="有序列表" aria-pressed="false">1. 列表</button>
+              <button type="button" data-command="task" title="待办事项（作用于所选行；再次点击撤销）" aria-label="待办事项" aria-pressed="false">☐ 待办</button>
+              <button type="button" data-command="quote" title="引用（作用于所选行；再次点击撤销）" aria-label="引用" aria-pressed="false">❯ 引用</button>
+              <button type="button" data-command="codeBlock" title="代码块；再次点击撤销" aria-label="代码块" aria-pressed="false">{ } 代码</button>
+            </div>
             <span class="toolbar-spacer"></span>
-            <button id="findButton" type="button" title="查找替换（⌘/Ctrl+F）">查找</button>
-            <button id="undoButton" type="button" title="撤销">↶</button>
-            <button id="redoButton" type="button" title="重做">↷</button>
+            <div class="toolbar-group toolbar-tools" role="group" aria-label="编辑工具">
+              <span class="toolbar-group-label">工具</span>
+              <button id="findButton" type="button" title="查找替换（⌘/Ctrl+F）">查找</button>
+              <button id="undoButton" type="button" title="撤销" aria-label="撤销">↶</button>
+              <button id="redoButton" type="button" title="重做" aria-label="重做">↷</button>
+            </div>
           </div>
 
           <footer class="status-bar">

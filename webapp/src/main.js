@@ -157,6 +157,7 @@ const state = {
   toastTimer: null,
   outlineTimer: null,
   searchTimer: null,
+  statsTimer: null,
   currentPersistedModifiedAt: 0,
 };
 
@@ -164,6 +165,7 @@ let syncScrollLocked = false;
 let syncScrollUnlockFrame = 0;
 let comparisonAlignmentFrame = 0;
 let editor;
+let toolbarSelection = null;
 let documentSyncChannel = null;
 const instanceId = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 
@@ -306,15 +308,32 @@ function wireEvents() {
   elements.undoButton.addEventListener("click", editor.undo);
   elements.redoButton.addEventListener("click", editor.redo);
 
+  elements.formatToolbar.addEventListener("pointerdown", (event) => {
+    const button = event.target.closest("button[data-command]");
+    if (!button) return;
+    toolbarSelection = editor.getSelection();
+    // Mouse/pen buttons can retain editor focus. On touch, allow the native
+    // click sequence to finish and rely on the captured CodeMirror range.
+    if (event.pointerType !== "touch") event.preventDefault();
+  });
   elements.formatToolbar.addEventListener("click", (event) => {
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.wrap) {
-      const [before, after] = button.dataset.wrap.split("|").map((value) => value.replaceAll("\\n", "\n"));
-      editor.wrap(before, after);
-    } else if (button.dataset.prefix) {
-      editor.prefixLines(button.dataset.prefix);
+    const selection = toolbarSelection || editor.getSelection();
+    const inlineCommands = {
+      bold: ["**", "**"],
+      italic: ["*", "*"],
+      highlight: ["==", "=="],
+      inlineCode: ["`", "`"],
+      codeBlock: ["```\n", "\n```"],
+      link: ["[", "](https://)"],
+    };
+    const markers = inlineCommands[button.dataset.command];
+    if (markers) editor.toggleWrap(...markers, selection);
+    else if (["heading", "unordered", "ordered", "task", "quote"].includes(button.dataset.command)) {
+      editor.toggleLineStyle(button.dataset.command, selection);
     }
+    toolbarSelection = null;
   });
 
   wireResizableSplit();
@@ -901,8 +920,9 @@ async function openDocument(id, { revealQuery = "" } = {}) {
   const document = await getDocument(id);
   if (!document || document.trashed) return;
   document.lastOpenedAt = Date.now();
-  await putDocument(document);
   state.current = document;
+  const cached = state.documents.find((item) => item.id === document.id);
+  if (cached) cached.lastOpenedAt = document.lastOpenedAt;
   state.currentPersistedModifiedAt = Number(document.modifiedAt) || 0;
   state.needsBackup = false;
   editor.setText(document.draft ?? document.original ?? "");
@@ -913,18 +933,31 @@ async function openDocument(id, { revealQuery = "" } = {}) {
   elements.welcome.hidden = true;
   elements.editorScreen.hidden = false;
   if (!elements.outlinePanel.hidden) renderOutline(document.draft ?? document.original ?? "");
-  await setSetting("lastDocumentId", document.id);
   updateDocumentStatus();
-  await refreshLibrary();
+  for (const row of elements.documentTree.querySelectorAll(".doc-row")) {
+    row.classList.toggle("is-active", row.dataset.documentId === document.id);
+  }
   toggleSidebar(false);
   requestAnimationFrame(() => {
     if (!revealQuery || !editor.revealText(revealQuery)) editor.focus();
   });
+  // Opening a document should feel immediate. Persist secondary metadata only
+  // after the editor is already visible and interactive.
+  Promise.all([putDocument({ ...document }), setSetting("lastDocumentId", document.id)])
+    .catch((error) => console.warn("Could not persist last-opened metadata", error));
+  if (state.libraryView === "recent") {
+    const schedule = window.requestIdleCallback || ((callback) => setTimeout(callback, 80));
+    schedule(() => renderLibrary());
+  }
 }
 
-function handleEditorUpdate({ text, docChanged, line, column }) {
+function handleEditorUpdate({ text, docChanged, line, column, formatting }) {
   elements.positionStatus.textContent = `第 ${line} 行，第 ${column} 列`;
-  updateStats(text);
+  updateToolbarState(formatting);
+  if (typeof text === "string") {
+    if (docChanged) scheduleStatsUpdate(text);
+    else updateStats(text);
+  }
   if (!docChanged || !state.current) return;
   state.current.draft = text;
   state.current.modifiedAt = Date.now();
@@ -942,10 +975,22 @@ function handleEditorUpdate({ text, docChanged, line, column }) {
   }
 }
 
+function updateToolbarState(formatting = {}) {
+  for (const button of elements.formatToolbar.querySelectorAll("button[data-command]")) {
+    const active = Boolean(formatting[button.dataset.command]);
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+}
+
+function scheduleStatsUpdate(text) {
+  clearTimeout(state.statsTimer);
+  state.statsTimer = setTimeout(() => updateStats(text), 100);
+}
+
 function updateCurrentDocumentDirtyMarker() {
   if (!state.current) return;
-  const row = [...elements.documentTree.querySelectorAll(".doc-row")]
-    .find((item) => item.dataset.documentId === state.current.id);
+  const row = elements.documentTree.querySelector(`.doc-row[data-document-id="${CSS.escape(state.current.id)}"]`);
   const marker = row?.querySelector(".doc-dirty");
   if (marker) marker.hidden = state.current.draft === state.current.original;
 }
@@ -963,7 +1008,7 @@ async function backupDraft() {
 
 function updateDocumentStatus() {
   if (!state.current) return;
-  const changed = editor.getText() !== state.current.original;
+  const changed = state.current.draft !== state.current.original;
   elements.discardButton.disabled = !changed;
   elements.overwriteOriginalButton.disabled = !changed;
   if (!changed) setSaveStatus("未修改", "clean");

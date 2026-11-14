@@ -16,6 +16,7 @@ import {
   ViewPlugin,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { getMarkdownFormatState, planToggleLineStyle, planToggleWrap } from "./markdown-format.js";
 
 const padmdMarkdownStyle = HighlightStyle.define([
   { tag: tags.strong, fontWeight: "750" },
@@ -85,7 +86,7 @@ export function createMarkdownEditor(parent, { onChange, onSave }) {
             key: "Mod-b",
             preventDefault: true,
             run: () => {
-              wrap("**", "**");
+              toggleWrap("**", "**");
               return true;
             },
           },
@@ -93,7 +94,7 @@ export function createMarkdownEditor(parent, { onChange, onSave }) {
             key: "Mod-i",
             preventDefault: true,
             run: () => {
-              wrap("*", "*");
+              toggleWrap("*", "*");
               return true;
             },
           },
@@ -108,10 +109,11 @@ export function createMarkdownEditor(parent, { onChange, onSave }) {
             const head = update.state.selection.main.head;
             const line = update.state.doc.lineAt(head);
             onChange({
-              text: update.state.doc.toString(),
+              text: update.docChanged ? update.state.doc.toString() : null,
               docChanged: update.docChanged,
               line: line.number,
               column: head - line.from + 1,
+              formatting: getCurrentFormatting(update.state),
             });
           }
         }),
@@ -124,37 +126,60 @@ export function createMarkdownEditor(parent, { onChange, onSave }) {
     suppressChange = true;
     view.setState(buildState(text));
     suppressChange = false;
-    onChange({ text, docChanged: false, line: 1, column: 1 });
+    onChange({ text, docChanged: false, line: 1, column: 1, formatting: getCurrentFormatting(view.state) });
   }
 
   function getText() {
     return view.state.doc.toString();
   }
 
-  function wrap(before, after) {
-    const selection = view.state.selection.main;
-    const selected = view.state.sliceDoc(selection.from, selection.to);
-    const insert = `${before}${selected}${after}`;
-    const cursor = selected
-      ? EditorSelection.range(selection.from + before.length, selection.to + before.length)
-      : EditorSelection.cursor(selection.from + before.length);
+  function getSelection() {
+    const { anchor, head, from, to } = view.state.selection.main;
+    return { anchor, head, from, to };
+  }
+
+  function getCurrentFormatting(state = view.state) {
+    const selection = state.selection.main;
+    const line = state.doc.lineAt(selection.head);
+    const localFrom = Math.max(0, selection.from - 16);
+    const localTo = Math.min(state.doc.length, selection.to + 32);
+    const localText = state.sliceDoc(localFrom, localTo);
+    const localSelection = {
+      anchor: selection.anchor - localFrom,
+      head: selection.head - localFrom,
+    };
+    const inline = getMarkdownFormatState(localText, localSelection);
+    const lineState = getMarkdownFormatState(line.text, {
+      anchor: Math.max(0, selection.anchor - line.from),
+      head: Math.max(0, selection.head - line.from),
+    });
+    return { ...inline, ...Object.fromEntries(["heading", "unordered", "ordered", "task", "quote"].map((key) => [key, lineState[key]])) };
+  }
+
+  function toggleWrap(before, after, selection = getSelection()) {
+    const plan = planToggleWrap(view.state.doc.toString(), selection, before, after);
     view.dispatch({
-      changes: { from: selection.from, to: selection.to, insert },
-      selection: cursor,
+      changes: plan.changes,
+      selection: EditorSelection.range(plan.selection.anchor, plan.selection.head),
       scrollIntoView: true,
     });
     view.focus();
   }
 
-  function prefixLines(prefix) {
-    const selection = view.state.selection.main;
-    const firstLine = view.state.doc.lineAt(selection.from);
-    const lastLine = view.state.doc.lineAt(selection.to);
-    const changes = [];
-    for (let number = firstLine.number; number <= lastLine.number; number += 1) {
-      changes.push({ from: view.state.doc.line(number).from, insert: prefix });
-    }
-    view.dispatch({ changes, scrollIntoView: true });
+  function toggleLineStyle(style, selection = getSelection()) {
+    const plan = planToggleLineStyle(view.state.doc.toString(), selection, style);
+    const changes = view.state.changes(plan.changes);
+    const mappedSelection = selection.anchor === selection.head
+      ? EditorSelection.cursor(changes.mapPos(selection.anchor, 1))
+      : EditorSelection.range(
+        changes.mapPos(selection.anchor, selection.anchor < selection.head ? 1 : -1),
+        changes.mapPos(selection.head, selection.anchor < selection.head ? -1 : 1),
+      );
+    view.dispatch({
+      changes,
+      selection: mappedSelection,
+      scrollIntoView: true,
+    });
     view.focus();
   }
 
@@ -183,8 +208,10 @@ export function createMarkdownEditor(parent, { onChange, onSave }) {
     view,
     setText,
     getText,
-    wrap,
-    prefixLines,
+    getSelection,
+    getFormatting: getCurrentFormatting,
+    toggleWrap,
+    toggleLineStyle,
     goToLine,
     revealText,
     undo: () => undo(view),
