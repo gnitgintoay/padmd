@@ -253,12 +253,9 @@ async function repairLegacyLooseDocuments() {
 
 function wireEvents() {
   elements.themeButton.addEventListener("click", async () => {
-    const themes = ["light", "dark", "midnight"];
-    const currentIndex = themes.indexOf(document.documentElement.dataset.theme);
-    const next = themes[(currentIndex + 1) % themes.length];
+    const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
     applyTheme(next);
     await setSetting("theme", next);
-    toast(`已切换到${themeName(next)}主题`);
   });
 
   elements.librarySearch.addEventListener("input", () => {
@@ -2026,18 +2023,10 @@ function applySidebarCollapsed(collapsed) {
   elements.sidebarRailButton.setAttribute("aria-expanded", String(!collapsed));
 }
 
-function themeName(theme) {
-  return ({ light: "暖白", dark: "暖夜", midnight: "黑白蓝" })[theme] || "暖白";
-}
-
 function applyTheme(theme) {
-  const themes = ["light", "dark", "midnight"];
-  const selected = themes.includes(theme) ? theme : "light";
-  const next = themes[(themes.indexOf(selected) + 1) % themes.length];
-  document.documentElement.dataset.theme = selected;
-  elements.themeColorMeta.content = ({ light: "#fff9f0", dark: "#221b18", midnight: "#07090d" })[selected];
-  elements.themeButton.dataset.currentTheme = selected;
-  elements.themeButton.title = `当前：${themeName(selected)}；点击切换到${themeName(next)}`;
+  document.documentElement.dataset.theme = theme;
+  elements.themeColorMeta.content = theme === "light" ? "#fff9f0" : "#221b18";
+  elements.themeButton.title = theme === "light" ? "切换到夜间模式" : "切换到日间模式";
   elements.themeButton.setAttribute("aria-label", elements.themeButton.title);
 }
 
