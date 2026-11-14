@@ -1,6 +1,7 @@
 import "./styles.css";
 import { registerSW } from "virtual:pwa-register";
 import { calculateSyncedScrollTop } from "./scroll-sync.js";
+import { normalizeTheme } from "./theme.js";
 
 import {
   createDocument,
@@ -199,7 +200,8 @@ async function initialize() {
   wireEvents();
   wireCrossTabSync();
   const [theme, splitRatio, editorMode, scrollSyncEnabled, sidebarCollapsed, collapsedFolders, lastFullBackupAt] = await settingsPromise;
-  applyTheme(theme);
+  const appliedTheme = applyTheme(theme);
+  if (appliedTheme !== theme) setSetting("theme", appliedTheme);
   state.splitRatio = Number(splitRatio);
   state.mode = editorMode;
   state.scrollSyncEnabled = scrollSyncEnabled !== false;
@@ -2024,10 +2026,12 @@ function applySidebarCollapsed(collapsed) {
 }
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  elements.themeColorMeta.content = theme === "light" ? "#fff9f0" : "#221b18";
-  elements.themeButton.title = theme === "light" ? "切换到夜间模式" : "切换到日间模式";
+  const selected = normalizeTheme(theme);
+  document.documentElement.dataset.theme = selected;
+  elements.themeColorMeta.content = selected === "light" ? "#fff9f0" : "#221b18";
+  elements.themeButton.title = selected === "light" ? "切换到夜间模式" : "切换到日间模式";
   elements.themeButton.setAttribute("aria-label", elements.themeButton.title);
+  return selected;
 }
 
 function toggleSidebar(open) {

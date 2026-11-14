@@ -10,6 +10,7 @@
   <a href="https://gnitgintoay.github.io/padmd/">在线使用</a> ·
   <a href="docs/USER_GUIDE.md">使用指南</a> ·
   <a href="docs/PRIVACY.md">隐私说明</a> ·
+  <a href="docs/FINAL_AUDIT_v0.1.8.md">最终检查</a> ·
   <a href="CONTRIBUTING.md">参与贡献</a>
 </p>
 
